@@ -251,7 +251,7 @@ export default function Booking() {
 
   return (
     <AppLayout back>
-      <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+      <div className="bg-stone-50 dark:bg-stone-950">
 
         {/* Specialist Selection */}
         <div className="bg-white dark:bg-stone-900 mt-2">
@@ -328,8 +328,8 @@ export default function Booking() {
                             setSelectedStylistLevel(level);
                           }}
                           className={`flex-1 py-3 text-sm font-medium transition-colors relative flex items-center justify-center gap-1.5 ${selectedStylistLevel === level
-                              ? "text-primary"
-                              : "text-stone-500 dark:text-stone-400"
+                            ? "text-primary"
+                            : "text-stone-500 dark:text-stone-400"
                             }`}
                         >
                           <LevelIcon size={14} />
@@ -421,8 +421,8 @@ export default function Booking() {
                                 </p>
                               </div>
                               <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${isSelected
-                                  ? "border-primary bg-primary"
-                                  : "border-stone-300 dark:border-stone-600"
+                                ? "border-primary bg-primary"
+                                : "border-stone-300 dark:border-stone-600"
                                 }`}>
                                 {isSelected && <Check size={12} className="text-white" />}
                               </div>
@@ -499,8 +499,8 @@ export default function Booking() {
                       </p>
                     </div>
                     <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${serviceLocation === "salon"
-                        ? "border-primary bg-primary"
-                        : "border-stone-300 dark:border-stone-600"
+                      ? "border-primary bg-primary"
+                      : "border-stone-300 dark:border-stone-600"
                       }`}>
                       {serviceLocation === "salon" && <Check size={12} className="text-white" />}
                     </div>
@@ -524,8 +524,8 @@ export default function Booking() {
                       </p>
                     </div>
                     <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${serviceLocation === "home"
-                        ? "border-primary bg-primary"
-                        : "border-stone-300 dark:border-stone-600"
+                      ? "border-primary bg-primary"
+                      : "border-stone-300 dark:border-stone-600"
                       }`}>
                       {serviceLocation === "home" && <Check size={12} className="text-white" />}
                     </div>
@@ -842,8 +842,8 @@ export default function Booking() {
                       </p>
                     </div>
                     <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === "cash"
-                        ? "border-primary bg-primary"
-                        : "border-stone-300 dark:border-stone-600"
+                      ? "border-primary bg-primary"
+                      : "border-stone-300 dark:border-stone-600"
                       }`}>
                       {paymentMethod === "cash" && <Check size={12} className="text-white" />}
                     </div>
@@ -870,8 +870,8 @@ export default function Booking() {
                         </p>
                       </div>
                       <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === "card" && selectedCard?.id === card.id
-                          ? "border-primary bg-primary"
-                          : "border-stone-300 dark:border-stone-600"
+                        ? "border-primary bg-primary"
+                        : "border-stone-300 dark:border-stone-600"
                         }`}>
                         {paymentMethod === "card" && selectedCard?.id === card.id && <Check size={12} className="text-white" />}
                       </div>
