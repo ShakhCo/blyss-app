@@ -7,4 +7,4 @@ RUN npm install
 RUN npm run build
 
 EXPOSE 7005
-CMD ["npm", "run", "preview", "--", "--port", "7005", "--host"]
+CMD ["npm", "run", "start"]
