@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:v3.heroui.com)",
+      "mcp__figma-desktop__get_design_context",
+      "mcp__figma-desktop__get_screenshot",
+      "Bash(npm run typecheck:*)",
+      "mcp__heroui-react__get_component_info",
+      "mcp__heroui-react__get_component_examples",
+      "Bash(curl:*)",
+      "mcp__heroui-react__get_component_source_styles",
+      "WebFetch(domain:docs.telegram-mini-apps.com)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

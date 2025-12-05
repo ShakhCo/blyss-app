@@ -1,0 +1,218 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router";
+import type { Route } from "./+types/home";
+import { AppLayout } from "~/components/AppLayout";
+import {
+  FeaturedSalonCard,
+  type FeaturedSalon,
+} from "~/components/FeaturedSalonCard";
+import { SalonFeedCard, type SalonFeedData } from "~/components/SalonFeedCard";
+import { StickyServicesHeader } from "~/components/StickyServicesHeader";
+import { ServiceButton } from "~/components/ServiceButton";
+import { SearchBar } from "~/components/SearchBar";
+import { SectionHeader } from "~/components/SectionHeader";
+import { useScrollProgress } from "~/hooks/useScrollProgress";
+import { bottomNav } from "~/stores/bottomNav";
+import { HomeSkeleton } from "~/components/skeletons";
+import { MapPin, Star } from "lucide-react";
+
+// Import service icons
+import scissorIcon from "~/assets/icons/scissor.png";
+import makeupIcon from "~/assets/icons/makeup.png";
+import dyeIcon from "~/assets/icons/dye.png";
+import massageIcon from "~/assets/icons/massage.png";
+import shavingBrushIcon from "~/assets/icons/shaving-brush.png";
+import creamIcon from "~/assets/icons/cream.png";
+import pluckingIcon from "~/assets/icons/plucking.png";
+
+// Main service categories
+const mainServices = [
+  { id: "1", name: "Soch olish", icon: scissorIcon, badge: null },
+  { id: "2", name: "Pardoz", icon: makeupIcon, badge: "-30%" },
+];
+
+// Secondary services (horizontal scroll)
+const secondaryServices = [
+  { id: "3", name: "Bo'yash", icon: dyeIcon },
+  { id: "4", name: "Soqol", icon: shavingBrushIcon },
+  { id: "5", name: "Teri", icon: creamIcon },
+  { id: "6", name: "Epilyatsiya", icon: pluckingIcon },
+  { id: "7", name: "Massaj", icon: massageIcon },
+];
+
+const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
+  {
+    id: "2",
+    name: "Zilola Beauty",
+    image:
+      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=400&fit=crop",
+    services: ["Soch", "Yuz", "2+"],
+    address: "Amir Temur shoh ko'chasi, 108",
+    rating: 4.7,
+    reviewCount: "2.7k",
+    isFavorite: false,
+    lat: 41.314472,
+    lng: 69.248123,
+  },
+  {
+    id: "3",
+    name: "Sitora Salon",
+    image:
+      "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?w=400&h=400&fit=crop",
+    services: ["Pardoz", "Soch", "Spa"],
+    address: "Bobur ko'chasi, 42",
+    rating: 4.9,
+    reviewCount: "1.8k",
+    isFavorite: false,
+    lat: 41.308234,
+    lng: 69.253891,
+  },
+  {
+    id: "1",
+    name: "Malika Go'zallik Saloni",
+    image:
+      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=400&fit=crop",
+    services: ["Soch", "Tirnoq", "Yuz"],
+    address: "Navoiy ko'chasi, 25",
+    rating: 4.8,
+    reviewCount: "3.1k",
+    isFavorite: true,
+    lat: 41.311081,
+    lng: 69.240562,
+  },
+];
+
+const feedSalons: SalonFeedData[] = nearestSalons.map((salon) => ({
+  id: salon.id,
+  name: salon.name,
+  image: salon.image,
+  address: salon.address,
+  likes: 75,
+  rating: salon.rating,
+  comments: 75,
+  distance: "2.4km sizdan",
+}));
+
+export function meta({ }: Route.MetaArgs) {
+  return [
+    { title: "New React Router App" },
+    { name: "description", content: "Welcome to React Router!" },
+  ];
+}
+
+export default function Home() {
+  const navigate = useNavigate();
+  const { ref: servicesRef, scrollProgress } = useScrollProgress();
+
+  // Show bottom nav when home page mounts
+  useEffect(() => {
+    bottomNav.show();
+  }, []);
+
+  const handleServiceClick = (service: { id: string; name: string }) => {
+    console.log(`Selected service: ${service.name}`);
+  };
+
+  const handleSalonClick = (salon: FeaturedSalon | SalonFeedData) => {
+    navigate(`/salon/${salon.id}`);
+  };
+
+  const handleFavoriteToggle = (salon: FeaturedSalon) => {
+    console.log(`Toggle favorite: ${salon.name}`);
+  };
+
+  const handleBookClick = (salon: SalonFeedData) => {
+    console.log(`Book: ${salon.name}`);
+  };
+
+  return (
+    <AppLayout>
+      <div>
+        <StickyServicesHeader
+          mainServices={mainServices}
+          secondaryServices={secondaryServices}
+          scrollProgress={scrollProgress}
+          onServiceClick={handleServiceClick}
+        />
+
+        {/* Header with Search */}
+        <div className="px-4 py-6">
+          <SearchBar
+            placeholder="Qidirish..."
+            onFocus={() => navigate("/search")}
+            onFilterClick={() => console.log("Filter clicked")}
+          />
+        </div>
+
+        {/* Services Section */}
+        <div className="px-4">
+          <div
+            ref={servicesRef}
+            className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2"
+          >
+            {secondaryServices.map((service) => (
+              <ServiceButton
+                key={service.id}
+                icon={service.icon}
+                name={service.name}
+                onClick={() => handleServiceClick(service)}
+              />
+            ))}
+          </div>
+
+          {/* Scroll indicator dots */}
+          <div className="flex items-center justify-center gap-1.5 pt-3">
+            <span className="size-2 rounded-full bg-stone-800 dark:bg-stone-200" />
+            <span className="size-1.5 rounded-full bg-stone-300 dark:bg-stone-600" />
+            <span className="size-1.5 rounded-full bg-stone-300 dark:bg-stone-600" />
+          </div>
+        </div>
+
+        {/* Featured Salon Section */}
+        <div className="mt-6 mb-6 bg-gradient-to-br from-stone-100 via-stone-100 to-stone-50 dark:from-stone-800 dark:via-stone-800 dark:to-stone-900 rounded-3xl pt-4 overflow-hidden">
+          <SectionHeader
+            title="Eng yaqin salonlar"
+            actionLabel="Barchasini ko'rish"
+            onActionClick={() => console.log("View all salons")}
+            className="px-4 mb-4"
+          />
+
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide pl-4 pr-3 pb-4 overflow-hidden">
+            {nearestSalons.map((salon) => (
+              <FeaturedSalonCard
+                key={salon.id}
+                salon={salon}
+                onClick={() => handleSalonClick(salon)}
+                onFavoriteToggle={() => handleFavoriteToggle(salon)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Salon Feed */}
+        <div className="flex flex-col">
+          {[...feedSalons, ...feedSalons, ...feedSalons].map((salon, index) => (
+            <SalonFeedCard
+              key={`${salon.id}-${index}`}
+              salon={salon}
+              onClick={() => handleSalonClick(salon)}
+              onBookClick={() => handleBookClick(salon)}
+              onLikeClick={() => console.log(`Like: ${salon.name}`)}
+              onCommentClick={() => console.log(`Comment: ${salon.name}`)}
+              onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
+            />
+          ))}
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+
+// Loading state shown while the route is loading
+export function HydrateFallback() {
+  return (
+    <AppLayout>
+      <HomeSkeleton />
+    </AppLayout>
+  );
+}
