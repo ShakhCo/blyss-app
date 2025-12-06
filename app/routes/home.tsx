@@ -25,16 +25,12 @@ import shavingBrushIcon from "~/assets/icons/shaving-brush.png";
 import creamIcon from "~/assets/icons/cream.png";
 import pluckingIcon from "~/assets/icons/plucking.png";
 
-// Main service categories
-const mainServices = [
+// All services for sticky header
+const allServices = [
   { id: "1", name: "Soch olish", icon: scissorIcon, badge: null },
-  { id: "2", name: "Pardoz", icon: makeupIcon, badge: "-30%" },
-];
-
-// Secondary services (horizontal scroll)
-const secondaryServices = [
-  { id: "3", name: "Bo'yash", icon: dyeIcon },
   { id: "4", name: "Soqol", icon: shavingBrushIcon },
+  { id: "3", name: "Bo'yash", icon: dyeIcon },
+  { id: "2", name: "Pardoz", icon: makeupIcon, badge: "-30%" },
   { id: "5", name: "Teri", icon: creamIcon },
   { id: "6", name: "Epilyatsiya", icon: pluckingIcon },
   { id: "7", name: "Massaj", icon: massageIcon },
@@ -109,6 +105,9 @@ export default function Home() {
     bottomNav.show();
   }, []);
 
+  // Show sticky header when scrolled past 50%
+  const showStickyHeader = scrollProgress > 0.5;
+
   const handleServiceClick = (service: { id: string; name: string }) => {
     console.log(`Selected service: ${service.name}`);
   };
@@ -122,16 +121,15 @@ export default function Home() {
   };
 
   const handleBookClick = (salon: SalonFeedData) => {
-    console.log(`Book: ${salon.name}`);
+    navigate(`/salon/${salon.id}`);
   };
 
   return (
     <AppLayout>
       <div>
         <StickyServicesHeader
-          mainServices={mainServices}
-          secondaryServices={secondaryServices}
-          scrollProgress={scrollProgress}
+          services={allServices}
+          isVisible={showStickyHeader}
           onServiceClick={handleServiceClick}
         />
 
@@ -150,7 +148,7 @@ export default function Home() {
             ref={servicesRef}
             className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2"
           >
-            {secondaryServices.map((service) => (
+            {allServices.map((service) => (
               <ServiceButton
                 key={service.id}
                 icon={service.icon}

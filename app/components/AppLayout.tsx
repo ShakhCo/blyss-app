@@ -1,6 +1,6 @@
 import { type PropsWithChildren, useEffect } from "react";
 import { useNavigate, useOutletContext } from "react-router";
-import { backButton } from "@tma.js/sdk-react";
+import { backButton, useSignal, viewport } from "@tma.js/sdk-react";
 import { Logo } from "./icons/Logo";
 import { BottomNav } from "./BottomNav";
 import { useLocationStore, selectDisplayName } from "~/stores/location";
@@ -37,6 +37,9 @@ export function AppLayout({
   const isBottomNavVisible = useBottomNavStore((state) => state.isVisible);
   const scrollRef = useScrollRestoration();
 
+  // Get safe area insets from Telegram viewport
+  const safeAreaInsets = useSignal(viewport.safeAreaInsets);
+
   // Fetch location after hydration (only if needed - store handles the 1 hour check)
   useEffect(() => {
     if (hasHydrated) {
@@ -70,16 +73,22 @@ export function AppLayout({
         ? error
         : displayName;
 
-  return removeHeader ? (
-    <div>
-      {children}
+  if (removeHeader) {
+    return (
+      <div>
+        {children}
+        <BottomNav />
+      </div>
+    );
+  }
 
-      <BottomNav />
-    </div>
-  ) : (
-    <div className="min-h-screen relative bg-stone-900">
-
-      <div className="fixed top-0 left-0 right-0 z-999 bg-stone-900 pt-10 sm:pt-4">
+  return (
+    <div className="h-screen flex flex-col bg-stone-900 overflow-hidden">
+      {/* Fixed Header with Safe Area */}
+      <div
+        className="shrink-0 z-50 bg-stone-900"
+        style={{ paddingTop: safeAreaInsets?.top ?? 0 }}
+      >
         <div className="pb-2">
           <Logo />
           <div className="text-white text-center font-medium text-sm pt-2">
@@ -88,7 +97,8 @@ export function AppLayout({
         </div>
       </div>
 
-      <div className="fixed top-30 sm:top-24 left-0 right-0 h-[calc(100vh-7.5rem)] bg-stone-900">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-hidden">
         <div className="h-full bg-white dark:bg-stone-900 rounded-t-3xl overflow-hidden">
           <div
             ref={scrollRef}
@@ -99,6 +109,7 @@ export function AppLayout({
         </div>
       </div>
 
+      {/* Fixed Footer with Safe Area (BottomNav handles its own padding) */}
       <BottomNav />
     </div>
   );

@@ -62,15 +62,27 @@ export default function App() {
 
   useEffect(() => {
     // Initialize TMA SDK only on client side
-    import("@tma.js/sdk-react").then(({ init, backButton, retrieveLaunchParams, viewport, swipeBehavior }) => {
+    import("@tma.js/sdk-react").then(async ({ init, backButton, retrieveLaunchParams, viewport, swipeBehavior }) => {
       try {
         init();
         backButton.mount();
 
         // Mount viewport and bind CSS variables for safe area
         if (viewport.mount.isAvailable()) {
-          viewport.mount();
+          await viewport.mount();
         }
+
+        // Expand viewport to full height
+        if (viewport.expand.isAvailable()) {
+          viewport.expand();
+        }
+
+        // Request fullscreen if available for better safe area detection
+        if (viewport.requestFullscreen?.isAvailable?.()) {
+          await viewport.requestFullscreen();
+        }
+
+        // Bind CSS variables for viewport dimensions and safe area insets
         if (viewport.bindCssVars.isAvailable()) {
           viewport.bindCssVars();
         }
@@ -97,6 +109,7 @@ export default function App() {
         }
       } catch (e) {
         // Not in Telegram context, continue without user data
+        console.log("TMA init error:", e);
       }
       setTmaReady(true);
     });

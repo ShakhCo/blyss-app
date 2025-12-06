@@ -217,7 +217,7 @@ const defaultUIState = {
   isServicesExpanded: false,
   isCalendarExpanded: true,
   isTimeExpanded: true,
-  isPaymentExpanded: true,
+  isPaymentExpanded: false,
 };
 
 export const useBookingUIStore = create<BookingUIState>()((set) => ({

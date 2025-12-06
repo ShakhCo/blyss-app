@@ -34,6 +34,11 @@ export function getMonthWeeks(year: number, month: number) {
 type CalendarProps = {
   value?: string;
   onChange?: (date: string) => void;
+  /**
+   * Function to check if a date has no available time slots.
+   * Returns true if the date should be disabled (no time slots available).
+   */
+  isDateUnavailable?: (date: Date) => boolean;
 };
 
 const formatDate = (date: Date) => {
@@ -43,20 +48,36 @@ const formatDate = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-export const Calendar = ({ value, onChange }: CalendarProps) => {
+export const Calendar = ({ value, onChange, isDateUnavailable }: CalendarProps) => {
   const today = new Date();
-  const todayStr = formatDate(today);
+
+  const limitDate = new Date();
+  limitDate.setDate(today.getDate() + 14);
+
+  // Find the first available date
+  const findFirstAvailableDate = (): Date => {
+    const current = new Date(today);
+    while (current <= limitDate) {
+      const isPast = current < today && current.toDateString() !== today.toDateString();
+      const hasNoTimeSlots = isDateUnavailable?.(current) ?? false;
+      if (!isPast && !hasNoTimeSlots) {
+        return current;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return today; // Fallback to today if no available dates
+  };
+
+  const firstAvailableDate = findFirstAvailableDate();
+  const defaultDateStr = formatDate(firstAvailableDate);
 
   const [internalValue, setInternalValue] = useState<string | undefined>(
-    value ?? todayStr
+    value ?? defaultDateStr
   );
 
   const selectedValue = value ?? internalValue;
 
   const weeks = getMonthWeeks(2025, 11);
-
-  const limitDate = new Date();
-  limitDate.setDate(today.getDate() + 14);
 
   const handleSelect = (day: Date) => {
     const dateStr = formatDate(day);
@@ -84,7 +105,8 @@ export const Calendar = ({ value, onChange }: CalendarProps) => {
               const isSelected = selectedValue === dateStr;
               const isToday = day.toDateString() === today.toDateString();
               const isPast = day < today && !isToday;
-              const isDisabled = isPast || day > limitDate;
+              const hasNoTimeSlots = isDateUnavailable?.(day) ?? false;
+              const isDisabled = isPast || day > limitDate || hasNoTimeSlots;
 
               return (
                 <motion.button

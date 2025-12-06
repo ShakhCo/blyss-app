@@ -150,6 +150,67 @@ const timeSlots = [
   "18:00", "18:30", "19:00", "19:30", "20:00",
 ];
 
+// Mock unavailable times per date (in a real app, this would come from an API)
+// Key format: "YYYY-MM-DD", value: array of unavailable times
+const unavailableTimesPerDate: Record<string, string[]> = {
+  // Example: To mark a date as fully booked, add all timeSlots for that date
+  // "2025-12-25": timeSlots, // Fully booked example
+  // To mark specific times as unavailable:
+  // "2025-12-20": ["12:00", "12:30", "15:00"],
+};
+
+// Helper function to format date as "YYYY-MM-DD"
+const formatDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+// Function to check if a date has no available time slots
+const isDateUnavailable = (date: Date): boolean => {
+  const dateKey = formatDateKey(date);
+  const unavailableTimes = unavailableTimesPerDate[dateKey] || [];
+
+  // For today, also check if all remaining times are past
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+
+  if (isToday) {
+    const availableSlots = timeSlots.filter((time) => {
+      // Check if time is not in unavailable list
+      if (unavailableTimes.includes(time)) return false;
+
+      // Check if time is not past (with 20 min buffer)
+      const [hours, minutes] = time.split(":").map(Number);
+      const slotTime = new Date();
+      slotTime.setHours(hours, minutes, 0, 0);
+      const minTime = new Date(now.getTime() + 20 * 60 * 1000);
+      return slotTime >= minTime;
+    });
+    return availableSlots.length === 0;
+  }
+
+  // For other dates, check if all times are unavailable
+  return unavailableTimes.length >= timeSlots.length;
+};
+
+// Function to find the first available date
+const getFirstAvailableDate = (): Date => {
+  const today = new Date();
+  const limitDate = new Date();
+  limitDate.setDate(today.getDate() + 14);
+
+  const current = new Date(today);
+  while (current <= limitDate) {
+    if (!isDateUnavailable(current)) {
+      return new Date(current);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return today; // Fallback to today if no available dates
+};
+
 export function meta({ }: Route.MetaArgs) {
   return [
     { title: "Band qilish - Blyss" },
@@ -171,7 +232,7 @@ export default function Booking() {
   const salon = salonsData[salonId] || salonsData["1"];
   const initialService = salon.services.find((s) => s.id === serviceId) || salon.services[0];
 
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => getFirstAvailableDate());
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedStylist, setSelectedStylist] = useState<Stylist>({ id: "anyone", name: "Istalgan", avatar: "", rating: 0, specialty: "", level: "standart" });
 
@@ -587,7 +648,10 @@ export default function Booking() {
                       // Reset time selection when date changes
                       setSelectedTime(null);
                       setIsCalendarExpanded(false);
+                      // Auto-expand time section after selecting date
+                      setIsTimeExpanded(true);
                     }}
+                    isDateUnavailable={isDateUnavailable}
                   />
                 </div>
               </motion.div>
@@ -651,8 +715,10 @@ export default function Booking() {
                     })
                     .map((time) => {
                       const isSelected = selectedTime === time;
-                      // Mock some unavailable times
-                      const isUnavailable = ["12:00", "12:30", "15:00"].includes(time);
+                      // Get unavailable times for selected date from mock data
+                      const dateKey = selectedDate ? formatDateKey(selectedDate) : "";
+                      const unavailableTimes = unavailableTimesPerDate[dateKey] || [];
+                      const isUnavailable = unavailableTimes.includes(time);
                       return (
                         <motion.button
                           key={time}
@@ -919,3 +985,4 @@ export default function Booking() {
     </AppLayout>
   );
 }
+

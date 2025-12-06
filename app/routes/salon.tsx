@@ -1,40 +1,14 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams, useBlocker, useNavigate } from "react-router";
+import { useParams, useNavigate, useLocation, Outlet } from "react-router";
+import { motion, AnimatePresence } from "framer-motion";
 import { AppLayout } from "~/components/AppLayout";
-import { Modal, Button } from "@heroui/react";
 import type { Route } from "./+types/salon";
 import { bottomNav } from "~/stores/bottomNav";
-import { bookingUI, bookingCart } from "~/stores/booking";
-import {
-  Star,
-  MapPin,
-  Clock,
-  Phone,
-  Heart,
-  Share2,
-  Check,
-  ChevronLeft,
-  ChevronDown,
-} from "lucide-react";
+import { bookingUI } from "~/stores/booking";
+import { Star, Clock } from "lucide-react";
 
-// Import service icons
-import scissorIcon from "~/assets/icons/scissor.png";
-import makeupIcon from "~/assets/icons/makeup.png";
-import massageIcon from "~/assets/icons/massage.png";
-import creamIcon from "~/assets/icons/cream.png";
-import pluckingIcon from "~/assets/icons/plucking.png";
-
-// Map category names to icons
-const categoryIcons: Record<string, string> = {
-  "Soch": scissorIcon,
-  "Tirnoq": pluckingIcon,
-  "Yuz": makeupIcon,
-  "Spa": massageIcon,
-  "Teri": creamIcon,
-};
-
-// Mock salon data
-const salonsData: Record<string, {
+// Mock salon data - shared across all salon routes
+export const salonsData: Record<string, {
   id: string;
   name: string;
   image: string;
@@ -186,11 +160,11 @@ const salonsData: Record<string, {
 
 type TabType = "services" | "gallery" | "reviews" | "about";
 
-const tabs: { id: TabType; label: string }[] = [
-  { id: "services", label: "Xizmatlar" },
-  { id: "gallery", label: "Galereya" },
-  { id: "reviews", label: "Sharhlar" },
-  { id: "about", label: "Haqida" },
+const tabs: { id: TabType; label: string; path: string }[] = [
+  { id: "services", label: "Xizmatlar", path: "" },
+  { id: "gallery", label: "Galereya", path: "gallery" },
+  { id: "reviews", label: "Sharhlar", path: "reviews" },
+  { id: "about", label: "Haqida", path: "about" },
 ];
 
 export function meta({ }: Route.MetaArgs) {
@@ -200,57 +174,52 @@ export function meta({ }: Route.MetaArgs) {
   ];
 }
 
-type ServiceType = {
-  id: string;
-  name: string;
-  duration: string;
-  price: string;
-  category: string;
+// Get tab index for animation direction
+const getTabIndex = (tabId: TabType): number => {
+  return tabs.findIndex(t => t.id === tabId);
 };
 
-export default function Salon() {
+export default function SalonLayout() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>("services");
+  const location = useLocation();
   const [overlayOpacity, setOverlayOpacity] = useState(0);
-  const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+  const [swipeDirection, setSwipeDirection] = useState<1 | -1>(1);
+  const previousTabRef = useRef<TabType>("services");
 
   const salon = salonsData[id || ""] || salonsData["1"];
 
-  const openServiceModal = (service: ServiceType) => {
-    // Always set the service first, then open
-    setSelectedService(service);
-    setIsModalOpen(true);
+  // Determine active tab from current path
+  const getActiveTab = (): TabType => {
+    const path = location.pathname;
+    if (path.endsWith("/gallery")) return "gallery";
+    if (path.endsWith("/reviews")) return "reviews";
+    if (path.endsWith("/about")) return "about";
+    return "services";
   };
 
-  const closeServiceModal = () => {
-    setIsModalOpen(false);
-    // Don't clear selectedService - it will be replaced when opening a new one
-  };
+  const activeTab = getActiveTab();
 
-  const handleBookService = (service: ServiceType) => {
-    // Close modal if open
-    closeServiceModal();
-    // Clear cart and add the selected service
-    bookingCart.clear();
-    bookingCart.setSalon(salon.id, salon.name);
-    bookingCart.addService(service);
-    // Navigate to booking page with salon and service info
-    navigate(`/booking?salonId=${salon.id}&serviceId=${service.id}`);
-  };
-
-  // Block back navigation when modal is open
-  const blocker = useBlocker(isModalOpen);
-
+  // Update swipe direction when tab changes
   useEffect(() => {
-    if (blocker.state === "blocked") {
-      closeServiceModal();
-      blocker.reset();
+    const currentIndex = getTabIndex(activeTab);
+    const previousIndex = getTabIndex(previousTabRef.current);
+    if (currentIndex !== previousIndex) {
+      setSwipeDirection(currentIndex > previousIndex ? 1 : -1);
+      previousTabRef.current = activeTab;
     }
-  }, [blocker]);
+  }, [activeTab]);
+
+  const handleTabClick = (tab: typeof tabs[0]) => {
+    const currentIndex = getTabIndex(activeTab);
+    const newIndex = getTabIndex(tab.id);
+    setSwipeDirection(newIndex > currentIndex ? 1 : -1);
+
+    const basePath = `/salon/${id}`;
+    const newPath = tab.path ? `${basePath}/${tab.path}` : basePath;
+    navigate(newPath, { replace: true });
+  };
 
   useEffect(() => {
     bottomNav.hide();
@@ -264,9 +233,8 @@ export default function Salon() {
   useEffect(() => {
     const handleScroll = () => {
       if (!heroRef.current) return;
-      const heroHeight = heroRef.current.offsetHeight; // 288px (h-72)
+      const heroHeight = heroRef.current.offsetHeight;
       const scrollY = window.scrollY;
-      // Black overlay from 0% to 50% as user scrolls
       const opacity = Math.min(0.5, (scrollY / heroHeight) * 0.5);
       setOverlayOpacity(opacity);
     };
@@ -275,20 +243,9 @@ export default function Salon() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Group services by category
-  const servicesByCategory = salon.services.reduce((acc, service) => {
-    if (!acc[service.category]) {
-      acc[service.category] = [];
-    }
-    acc[service.category].push(service);
-    return acc;
-  }, {} as Record<string, typeof salon.services>);
-
-
   return (
     <AppLayout back removeHeader>
       <div className="min-h-screen bg-white dark:bg-stone-900">
-
         <div className="sticky -top-48">
           {/* Hero Section with Image */}
           <div ref={heroRef} className="relative h-72">
@@ -332,7 +289,7 @@ export default function Salon() {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabClick(tab)}
                   className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === tab.id
                     ? "text-primary"
                     : "text-stone-500 dark:text-stone-400"
@@ -340,7 +297,11 @@ export default function Salon() {
                 >
                   {tab.label}
                   {activeTab === tab.id && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                    <motion.span
+                      layoutId="salon-tab-indicator"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    />
                   )}
                 </button>
               ))}
@@ -348,316 +309,44 @@ export default function Salon() {
           </div>
         </div>
 
-        {/* Tab Content */}
-        <div className="pb-6">
-          {/* Services Tab */}
-          {activeTab === "services" && (
-            <div className="">
-              <div className="h-[6px] bg-stone-50">
-              </div>
-              {Object.entries(servicesByCategory).map(([category, services]) => (
-                <div key={category} className="border-b-6 border-stone-50 dark:border-stone-800">
-                  {/* Category Header */}
-                  <div className="px-4 py-3 flex items-center gap-3">
-                    <div className="size-12 shrink-0 bg-stone-100 dark:bg-stone-800 rounded-2xl flex items-center justify-center">
-                      <img
-                        src={categoryIcons[category] || scissorIcon}
-                        alt={category}
-                        className="size-7 object-contain"
-                      />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-stone-900 dark:text-stone-100">{category}</span>
-                      <span className="text-sm text-stone-400">{services.length} ta xizmat</span>
-                    </div>
-                  </div>
-
-                  {/* Services List */}
-                  <div className="divide-y divide-stone-100 dark:divide-stone-800">
-                    {services.map((service) => (
-                      <div
-                        key={service.id}
-                        onClick={() => openServiceModal(service)}
-                        className="px-4 py-4 flex items-center justify-between gap-3"
-                      >
-                        <button
-                          type="button"
-                          className="flex-1 min-w-0 text-left"
-                        >
-                          <h4 className="font-semibold text-stone-900 dark:text-stone-100">
-                            {service.name}
-                          </h4>
-                          <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-                            {service.duration} · {service.price} so'm
-                          </p>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleBookService(service);
-                          }}
-                          type="button"
-                          className="px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-full hover:bg-primary/90 transition-colors active:scale-[0.98]"
-                        >
-                          Band qilish
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Gallery Tab */}
-          {activeTab === "gallery" && (
-            <div className="p-4">
-              <div className="grid grid-cols-2 gap-2">
-                {salon.gallery.map((img, index) => (
-                  <div
-                    key={index}
-                    className={`rounded-xl overflow-hidden ${index === 0 ? "col-span-2 aspect-video" : "aspect-square"
-                      }`}
-                  >
-                    <img
-                      src={img}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Reviews Tab */}
-          {activeTab === "reviews" && (
-            <div className="p-4 space-y-4">
-              {/* Rating summary */}
-              <div className="bg-stone-50 dark:bg-stone-800/50 rounded-2xl p-4 flex items-center gap-4">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-stone-900 dark:text-stone-100">
-                    {salon.rating}
-                  </div>
-                  <div className="flex items-center gap-0.5 justify-center mt-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        size={14}
-                        className={
-                          star <= Math.round(salon.rating)
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-stone-300 dark:text-stone-600"
-                        }
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
-                    {salon.reviewCount} ta sharh
-                  </p>
-                </div>
-                <div className="flex-1 space-y-1.5">
-                  {[5, 4, 3, 2, 1].map((rating) => (
-                    <div key={rating} className="flex items-center gap-2">
-                      <span className="text-xs text-stone-500 w-3">{rating}</span>
-                      <div className="flex-1 h-1.5 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-yellow-400 rounded-full"
-                          style={{
-                            width: rating === 5 ? "70%" : rating === 4 ? "20%" : rating === 3 ? "7%" : "3%",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Reviews list */}
-              <div className="space-y-3">
-                {salon.reviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="bg-stone-50 dark:bg-stone-800/50 rounded-2xl p-4"
-                  >
-                    <div className="flex items-start gap-3">
-                      <img
-                        src={review.avatar}
-                        alt={review.author}
-                        className="size-10 rounded-full object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-stone-900 dark:text-stone-100">
-                            {review.author}
-                          </span>
-                          <span className="text-xs text-stone-500 dark:text-stone-400">
-                            {review.date}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-0.5 mt-0.5">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              size={12}
-                              className={
-                                star <= review.rating
-                                  ? "fill-yellow-400 text-yellow-400"
-                                  : "text-stone-300 dark:text-stone-600"
-                              }
-                            />
-                          ))}
-                        </div>
-                        <p className="text-sm text-stone-600 dark:text-stone-300 mt-2">
-                          {review.text}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* About Tab */}
-          {activeTab === "about" && (
-            <div className="p-4 space-y-6">
-              {/* Description */}
-              <div>
-                <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-2">
-                  Salon haqida
-                </h3>
-                <p className="text-sm text-stone-600 dark:text-stone-400 leading-relaxed whitespace-pre-line">
-                  {salon.description}
-                </p>
-              </div>
-
-              {/* Contact Info */}
-              <div>
-                <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-3">
-                  Aloqa
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-stone-600 dark:text-stone-300">
-                    <div className="size-10 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center">
-                      <MapPin size={18} className="text-primary" />
-                    </div>
-                    <span className="text-sm">{salon.address}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-stone-600 dark:text-stone-300">
-                    <div className="size-10 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center">
-                      <Clock size={18} className="text-primary" />
-                    </div>
-                    <div>
-                      <span className="text-sm">{salon.workingHours}</span>
-                      <span className="text-xs text-green-500 font-medium ml-2">Ochiq</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-stone-600 dark:text-stone-300">
-                    <div className="size-10 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center">
-                      <Phone size={18} className="text-primary" />
-                    </div>
-                    <span className="text-sm">{salon.phone}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Amenities */}
-              <div>
-                <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-3">
-                  Qulayliklar
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {salon.amenities.map((amenity) => (
-                    <span
-                      key={amenity}
-                      className="px-3 py-1.5 bg-stone-100 dark:bg-stone-800 rounded-full text-sm text-stone-600 dark:text-stone-300"
-                    >
-                      {amenity}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+        {/* Tab Content - rendered via Outlet with animation */}
+        <div className="pb-6 overflow-hidden">
+          <AnimatePresence initial={false} mode="popLayout" custom={swipeDirection}>
+            <motion.div
+              key={activeTab}
+              custom={swipeDirection}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              variants={{
+                enter: (dir: number) => ({
+                  x: dir > 0 ? "100%" : "-100%",
+                  opacity: 0,
+                }),
+                center: {
+                  x: 0,
+                  opacity: 1,
+                },
+                exit: (dir: number) => ({
+                  x: dir > 0 ? "-100%" : "100%",
+                  opacity: 0,
+                }),
+              }}
+              transition={{
+                x: { type: "tween", duration: 0.3, ease: [0.32, 0.72, 0, 1] },
+                opacity: { duration: 0.2 },
+              }}
+            >
+              <Outlet context={{ salon }} />
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
-
-      {/* Service Detail Modal */}
-      <Modal.Container
-        isOpen={isModalOpen}
-        onOpenChange={(open) => !open && closeServiceModal()}
-        placement="bottom"
-        backdropClassName="data-[exiting]:duration-400"
-        className="data-[entering]:duration-300 data-[exiting]:duration-400 data-[entering]:animate-in data-[entering]:slide-in-from-bottom-full data-[entering]:fade-in-0 data-[entering]:ease-fluid-out data-[exiting]:animate-out data-[exiting]:slide-out-to-bottom-full data-[exiting]:opacity-100 data-[exiting]:ease-out-quart"
-      >
-        <Modal.Dialog className="sm:max-w-md mb-0 sm:min-h-[90vh]">
-          {({ close }) => (
-            <>
-              <Modal.CloseTrigger />
-              {selectedService && (
-                <>
-                  <Modal.Header className="flex-row items-center gap-4 pb-2">
-                    <div className="size-14 shrink-0 bg-stone-100 dark:bg-stone-800 rounded-2xl flex items-center justify-center">
-                      <img
-                        src={categoryIcons[selectedService.category] || scissorIcon}
-                        alt={selectedService.category}
-                        className="size-8 object-contain"
-                      />
-                    </div>
-                    <div>
-                      <Modal.Heading className="text-lg">
-                        {selectedService.name}
-                      </Modal.Heading>
-                      <p className="text-sm text-stone-500 dark:text-stone-400">
-                        {selectedService.category}
-                      </p>
-                    </div>
-                  </Modal.Header>
-
-                  <Modal.Body className="py-4">
-                    {/* Service Details */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between py-3 border-b border-stone-100 dark:border-stone-800">
-                        <div className="flex items-center gap-3 text-stone-600 dark:text-stone-400">
-                          <Clock size={18} />
-                          <span>Davomiyligi</span>
-                        </div>
-                        <span className="font-medium text-stone-900 dark:text-stone-100">
-                          {selectedService.duration}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between py-3 border-b border-stone-100 dark:border-stone-800">
-                        <div className="flex items-center gap-3 text-stone-600 dark:text-stone-400">
-                          <Star size={18} />
-                          <span>Narxi</span>
-                        </div>
-                        <span className="font-bold text-lg text-primary">
-                          {selectedService.price} so'm
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-sm text-stone-600 dark:text-stone-400 leading-relaxed">
-                      Professional xizmat ko'rsatish. Tajribali mutaxassislar tomonidan amalga oshiriladi. Yuqori sifatli materiallar ishlatiladi.
-                    </p>
-                  </Modal.Body>
-
-                  <Modal.Footer className="pt-2">
-                    <Button
-                      className="w-full py-6 bg-primary text-white font-semibold rounded-2xl"
-                      onPress={() => handleBookService(selectedService)}
-                    >
-                      Band qilish — {selectedService.price} so'm
-                    </Button>
-                  </Modal.Footer>
-                </>
-              )}
-            </>
-          )}
-        </Modal.Dialog>
-      </Modal.Container>
     </AppLayout>
   );
 }
+
+// Export type for child routes to use
+export type SalonContext = {
+  salon: typeof salonsData[string];
+};

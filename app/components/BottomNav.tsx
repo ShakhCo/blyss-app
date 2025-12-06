@@ -1,6 +1,7 @@
 import { NavLink } from "react-router";
 import { Home, Search, CalendarDays, MessageCircle, User } from "lucide-react";
 import { useBottomNavStore } from "~/stores/bottomNav";
+import { useSignal, viewport } from "@tma.js/sdk-react";
 
 interface NavItem {
   id: string;
@@ -44,17 +45,17 @@ const navItems: NavItem[] = [
 
 export function BottomNav() {
   const isVisible = useBottomNavStore((state) => state.isVisible);
+  const safeAreaInsets = useSignal(viewport.safeAreaInsets);
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 px-3 pt-1 transition-all duration-300 ease-out"
+      className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-4 transition-all duration-300 ease-out"
       style={{
         transform: isVisible ? "translateY(0)" : "translateY(100%)",
         opacity: isVisible ? 1 : 0,
-        paddingBottom: 'calc(var(--tg-safe-area-inset-bottom, 0px) + 12px)',
+        // paddingBottom: (safeAreaInsets?.bottom ?? 0),
       }}
     >
-      {/* Background blur layer */}
       <div
         className="absolute inset-0 -z-10 backdrop-blur-md"
         style={{
@@ -66,7 +67,6 @@ export function BottomNav() {
       />
       <div className="absolute inset-0 -z-10 bg-gradient-to-t from-white/95 via-white/80 to-transparent dark:from-stone-900/95 dark:via-stone-900/80 pointer-events-none" />
 
-      {/* Nav container */}
       <div className="relative bg-white/95 dark:bg-stone-800/95 backdrop-blur-lg rounded-[1.75rem] shadow-lg shadow-stone-200/50 dark:shadow-stone-950/50 border-t border-t-stone-200 dark:border-t-stone-900">
         <div className="grid grid-cols-4 gap-1 items-center justify-around h-16 px-2 overflow-x-auto scrollbar-hide">
           {navItems.map((item) => (
