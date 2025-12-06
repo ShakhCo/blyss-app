@@ -1,5 +1,5 @@
 import { Button } from "@heroui/react";
-import { ChevronRight, Heart, MessageCircle, Navigation, Star } from "lucide-react";
+import { ChevronRight, MessageCircle, Navigation, Star } from "lucide-react";
 
 export interface SalonFeedData {
   id: string;
@@ -18,7 +18,7 @@ export interface SalonFeedCardProps {
   onClick?: () => void;
   onBookClick?: () => void;
   onLikeClick?: () => void;
-  onCommentClick?: () => void;
+  onReviewsClick?: () => void;
   onNavigateClick?: () => void;
 }
 
@@ -27,7 +27,7 @@ export function SalonFeedCard({
   onClick,
   onBookClick,
   onLikeClick,
-  onCommentClick,
+  onReviewsClick,
   onNavigateClick,
 }: SalonFeedCardProps) {
   const galleryImages = salon.gallery ?? [
@@ -90,7 +90,7 @@ export function SalonFeedCard({
           </button>
           <button
             type="button"
-            onClick={onCommentClick}
+            onClick={onReviewsClick}
             className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
           >
             <MessageCircle size={20} className="mx-auto dark:text-stone-300" />

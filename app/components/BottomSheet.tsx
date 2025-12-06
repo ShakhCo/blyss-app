@@ -1,153 +1,191 @@
-import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
-import { flushSync } from "react-dom";
-import { useBlocker } from "react-router";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
 
 interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  title?: string;
+  subtitle?: string;
+  icon?: ReactNode;
   children: ReactNode;
+  footer?: ReactNode;
+  maxHeight?: string;
+  showCloseButton?: boolean;
+  showDragHandle?: boolean;
 }
 
-export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [shouldAnimate, setShouldAnimate] = useState(false);
+export function BottomSheet({
+  isOpen,
+  onClose,
+  title,
+  subtitle,
+  icon,
+  children,
+  footer,
+  maxHeight = "70vh",
+  showCloseButton = true,
+  showDragHandle = true,
+}: BottomSheetProps) {
   const [dragY, setDragY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartY = useRef(0);
-  const animationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+  const startYRef = useRef(0);
+  const isDraggingRef = useRef(false);
 
-  // Block navigation when modal is open
-  const blocker = useBlocker(isOpen && shouldAnimate);
-
-  useEffect(() => {
-    if (blocker.state === "blocked") {
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
       onClose();
-      blocker.reset();
-    }
-  }, [blocker, onClose]);
-
-  // Single effect to handle all state transitions
-  useEffect(() => {
-    // Always clear pending timer first
-    if (animationTimerRef.current) {
-      clearTimeout(animationTimerRef.current);
-      animationTimerRef.current = null;
-    }
-
-    if (isOpen) {
-      // OPENING: Use flushSync to force synchronous state updates
-      // This ensures the DOM is updated before we trigger the animation
-      flushSync(() => {
-        setDragY(0);
-        setIsDragging(false);
-        setIsVisible(true);
-        setShouldAnimate(false);
-      });
-
-      // Now trigger the animation after DOM has updated
-      requestAnimationFrame(() => {
-        setShouldAnimate(true);
-      });
-    } else {
-      // CLOSING: Animate out, then hide
-      setShouldAnimate(false);
+      setIsClosing(false);
       setDragY(0);
+    }, 300);
+  };
 
-      animationTimerRef.current = setTimeout(() => {
-        setIsVisible(false);
-      }, 300);
-    }
-
-    return () => {
-      if (animationTimerRef.current) {
-        clearTimeout(animationTimerRef.current);
-      }
-    };
-  }, [isOpen]);
-
-  // Body scroll lock
-  useEffect(() => {
-    if (isVisible) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isVisible]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    dragStartY.current = e.touches[0].clientY;
-    setIsDragging(true);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return;
-    e.preventDefault();
+  const handleTouchStart = (e: React.TouchEvent) => {
     e.stopPropagation();
+    startYRef.current = e.touches[0].clientY;
+    isDraggingRef.current = true;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!isDraggingRef.current) return;
     const currentY = e.touches[0].clientY;
-    const diff = currentY - dragStartY.current;
+    const diff = currentY - startYRef.current;
     if (diff > 0) {
       setDragY(diff);
     }
-  }, [isDragging]);
+  };
 
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false);
-    if (dragY > 50) {
-      onClose();
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    isDraggingRef.current = false;
+    if (dragY > 100) {
+      handleClose();
     } else {
       setDragY(0);
     }
-  }, [dragY, onClose]);
+  };
 
-  // Don't render anything if not visible
-  if (!isVisible) return null;
+  // Reset state when opening
+  useEffect(() => {
+    if (isOpen) {
+      setDragY(0);
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
-  // Determine if we're in closing state
-  const isClosing = !isOpen && isVisible;
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      document.body.style.touchAction = "none";
 
-  // Calculate backdrop opacity
-  const backdropOpacity = shouldAnimate ? Math.max(0, 0.5 - dragY / 400) : 0;
+      const preventScroll = (e: TouchEvent) => {
+        e.preventDefault();
+      };
+      document.addEventListener("touchmove", preventScroll, { passive: false });
 
-  // Only allow backdrop clicks when fully open and not closing
-  const allowBackdropClick = isOpen && shouldAnimate && !isDragging;
-
-  let transform: string;
-  if (dragY > 0) {
-    transform = `translateY(${dragY}px)`;
-  } else if (shouldAnimate) {
-    transform = "translateY(0)";
-  } else {
-    transform = "translateY(100%)";
-  }
+      return () => {
+        document.body.style.overflow = "auto";
+        document.body.style.touchAction = "auto";
+        document.removeEventListener("touchmove", preventScroll);
+      };
+    }
+  }, [isOpen]);
 
   return (
-    <>
-      <div
-        className={`fixed inset-0 bg-black z-50 ${
-          isDragging ? "" : "transition-opacity duration-300"
-        } ${!allowBackdropClick ? "pointer-events-none" : ""}`}
-        style={{ opacity: backdropOpacity }}
-        onClick={allowBackdropClick ? onClose : undefined}
-      />
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-stone-900 rounded-t-3xl ${
-          isDragging ? "" : "transition-transform duration-300 ease-out"
-        } ${isClosing ? "pointer-events-none" : "touch-none"}`}
-        style={{ transform }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <div className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing">
-          <div className="w-10 h-1 bg-stone-300 dark:bg-stone-700 rounded-full" />
-        </div>
-        <div className="px-5 pb-8">
-          {children}
-        </div>
-      </div>
-    </>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 touch-none"
+        >
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: isClosing ? 0 : 1 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 bg-black/50 touch-none"
+            onClick={handleClose}
+          />
+
+          {/* Modal Content */}
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: isClosing ? "100%" : dragY }}
+            exit={{ y: "100%" }}
+            transition={{
+              duration: isClosing ? 0.3 : (dragY > 0 ? 0 : 0.3),
+              ease: [0.32, 0.72, 0, 1]
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className="absolute bottom-0 left-0 right-0 flex flex-col bg-white dark:bg-stone-900 rounded-t-3xl overflow-hidden touch-none"
+            style={{ maxHeight }}
+          >
+            {/* Drag Handle */}
+            {showDragHandle && (
+              <div className="shrink-0 flex justify-center py-3">
+                <div className="w-10 h-1 bg-stone-300 dark:bg-stone-600 rounded-full" />
+              </div>
+            )}
+
+            {/* Header */}
+            {(title || icon || showCloseButton) && (
+              <div className="shrink-0 flex items-center justify-between px-4 pb-3">
+                <div className="flex items-center gap-3">
+                  {icon && (
+                    <div className="size-12 shrink-0 bg-stone-100 dark:bg-stone-800 rounded-2xl flex items-center justify-center">
+                      {icon}
+                    </div>
+                  )}
+                  {(title || subtitle) && (
+                    <div>
+                      {title && (
+                        <h2 className="text-lg font-bold text-stone-900 dark:text-white">
+                          {title}
+                        </h2>
+                      )}
+                      {subtitle && (
+                        <p className="text-sm text-stone-500 dark:text-stone-400">
+                          {subtitle}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {showCloseButton && (
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="size-10 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800"
+                  >
+                    <X size={20} className="text-stone-600 dark:text-stone-400" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Body */}
+            <div className="flex-1 overflow-auto px-4 pb-6">
+              {children}
+            </div>
+
+            {/* Footer */}
+            {footer && (
+              <div className="shrink-0 px-4 py-4 border-t border-stone-200 dark:border-stone-800">
+                {footer}
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

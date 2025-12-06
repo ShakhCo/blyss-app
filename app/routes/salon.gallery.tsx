@@ -1,62 +1,79 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router";
-import { motion, AnimatePresence, type PanInfo } from "framer-motion";
+import { motion } from "framer-motion";
+import { SlidePanel } from "~/components/SlidePanel";
 import type { SalonContext } from "./salon";
 
 export default function SalonGallery() {
   const { salon } = useOutletContext<SalonContext>();
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [direction, setDirection] = useState(0);
+  const [dragX, setDragX] = useState(0);
+  const startXRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const containerWidthRef = useRef(0);
 
   const images = salon.gallery;
+  const isOpen = selectedImageIndex !== null;
 
   const closeModal = () => {
     setSelectedImageIndex(null);
+    setDragX(0);
   };
 
   const goToNext = () => {
     if (selectedImageIndex !== null && selectedImageIndex < images.length - 1) {
-      setDirection(1);
       setSelectedImageIndex(selectedImageIndex + 1);
     }
+    setDragX(0);
   };
 
   const goToPrev = () => {
     if (selectedImageIndex !== null && selectedImageIndex > 0) {
-      setDirection(-1);
       setSelectedImageIndex(selectedImageIndex - 1);
     }
+    setDragX(0);
   };
 
-  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const threshold = 50;
-    const velocity = 500;
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startXRef.current = e.touches[0].clientX;
+    isDraggingRef.current = true;
+    containerWidthRef.current = window.innerWidth;
+  };
 
-    if (info.offset.x < -threshold || info.velocity.x < -velocity) {
-      // Swiped left -> go to next
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDraggingRef.current) return;
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - startXRef.current;
+
+    // Limit drag at edges
+    if (selectedImageIndex === 0 && diff > 0) {
+      setDragX(diff * 0.3); // Resistance at start
+    } else if (selectedImageIndex === images.length - 1 && diff < 0) {
+      setDragX(diff * 0.3); // Resistance at end
+    } else {
+      setDragX(diff);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    isDraggingRef.current = false;
+    const threshold = containerWidthRef.current * 0.2; // 20% of screen width
+
+    if (dragX < -threshold && selectedImageIndex !== null && selectedImageIndex < images.length - 1) {
       goToNext();
-    } else if (info.offset.x > threshold || info.velocity.x > velocity) {
-      // Swiped right -> go to prev
+    } else if (dragX > threshold && selectedImageIndex !== null && selectedImageIndex > 0) {
       goToPrev();
+    } else {
+      setDragX(0);
     }
   };
 
-  // Lock body scroll when modal is open
+  // Handle keyboard navigation for gallery
   useEffect(() => {
-    if (selectedImageIndex !== null) {
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = "auto";
-      };
-    }
-  }, [selectedImageIndex]);
+    if (!isOpen) return;
 
-  // Handle keyboard navigation
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closeModal();
-      } else if (event.key === "ArrowRight") {
+      if (event.key === "ArrowRight") {
         goToNext();
       } else if (event.key === "ArrowLeft") {
         goToPrev();
@@ -65,23 +82,7 @@ export default function SalonGallery() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedImageIndex, images.length]);
-
-  // Image slide variants
-  const slideVariants = {
-    enter: (direction: number) => ({
-      x: direction > 0 ? 300 : -300,
-      opacity: 0,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-    },
-    exit: (direction: number) => ({
-      x: direction < 0 ? 300 : -300,
-      opacity: 0,
-    }),
-  };
+  }, [isOpen, selectedImageIndex, images.length]);
 
   return (
     <>
@@ -111,54 +112,69 @@ export default function SalonGallery() {
         )}
       </div>
 
-      {/* Simple Modal */}
-      <AnimatePresence>
+      {/* Photo Viewer Modal */}
+      <SlidePanel
+        isOpen={isOpen}
+        onClose={closeModal}
+        showHeader={false}
+        className="bg-black"
+      >
         {selectedImageIndex !== null && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="fixed inset-0 z-50"
-          >
-            {/* Backdrop */}
+          <>
+            {/* Image Carousel */}
             <div
-              className="absolute inset-0 bg-black/90"
-              onClick={() => closeModal()}
-            />
-
-            {/* Image - centered with swipe */}
-            <div
-              className="absolute inset-0 flex items-center justify-center overflow-hidden"
-              onClick={() => closeModal()}
+              className="absolute inset-0 flex items-center overflow-hidden"
+              onClick={closeModal}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
             >
-              <AnimatePresence initial={false} custom={direction} mode="popLayout">
-                <motion.img
-                  key={selectedImageIndex}
-                  src={images[selectedImageIndex]}
-                  alt=""
-                  className="max-w-full max-h-[70vh] object-contain"
-                  custom={direction}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{
-                    x: { type: "spring", stiffness: 300, damping: 30 },
-                    opacity: { duration: 0.2 },
-                  }}
-                  drag="x"
-                  dragConstraints={{ left: 0, right: 0 }}
-                  dragElastic={1}
-                  onDragEnd={handleDragEnd}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </AnimatePresence>
+              <motion.div
+                className="flex items-center"
+                initial={false}
+                animate={{ x: `calc(${dragX}px - ${selectedImageIndex * 100}vw)` }}
+                transition={{
+                  duration: isDraggingRef.current ? 0 : 0.3,
+                  ease: [0.32, 0.72, 0, 1]
+                }}
+                style={{ width: `${images.length * 100}vw` }}
+              >
+                {images.map((img, index) => (
+                  <div
+                    key={index}
+                    className="w-screen h-screen flex items-center justify-center shrink-0 px-0 relative"
+                  >
+                    <img
+                      src={img}
+                      alt=""
+                      className="max-w-full max-h-[70vh] object-contain"
+                      onClick={closeModal}
+                    />
+                    {/* Left overlay - go to previous */}
+                    <div
+                      className="absolute left-0 top-0 bottom-24 w-[25%] bg-transparent z-10 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); goToPrev(); }}
+                    />
+                    {/* Right overlay - go to next */}
+                    <div
+                      className="absolute right-0 top-0 bottom-24 w-[25%] bg-transparent z-10 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); goToNext(); }}
+                    />
+                  </div>
+                ))}
+              </motion.div>
+            </div>
+
+            {/* Image counter - centered above image */}
+            <div className="absolute top-[calc(15vh-24px)] left-0 right-0 z-30 flex justify-center">
+              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-sm">
+                {selectedImageIndex + 1}/{images.length}
+              </div>
             </div>
 
             {/* Thumbnail strip */}
             <div
-              className="absolute bottom-4 left-0 right-0 px-4 z-20"
+              className="absolute bottom-4 left-0 right-0 z-20"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex gap-2 justify-center overflow-x-auto scrollbar-hide py-2">
@@ -166,10 +182,13 @@ export default function SalonGallery() {
                   <button
                     key={index}
                     type="button"
-                    onClick={() => setSelectedImageIndex(index)}
-                    className={`shrink-0 size-12 rounded-lg overflow-hidden transition-all ${
+                    onClick={() => {
+                      setSelectedImageIndex(index);
+                      setDragX(0);
+                    }}
+                    className={`shrink-0 size-12 rounded overflow-hidden transition-all ${
                       index === selectedImageIndex
-                        ? "ring-2 ring-white scale-110"
+                        ? "ring-2 ring-white scale-105"
                         : "opacity-50 hover:opacity-75"
                     }`}
                   >
@@ -178,9 +197,9 @@ export default function SalonGallery() {
                 ))}
               </div>
             </div>
-          </motion.div>
+          </>
         )}
-      </AnimatePresence>
+      </SlidePanel>
     </>
   );
 }

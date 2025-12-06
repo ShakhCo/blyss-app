@@ -38,11 +38,24 @@ const allServices = [
 
 const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
   {
-    id: "2",
-    name: "Zilola Beauty",
+    id: "1",
+    name: "Shark Barbershop",
     image:
-      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=400&fit=crop",
-    services: ["Soch", "Yuz", "2+"],
+      "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400&h=400&fit=crop",
+    services: ["Soch", "Soqol", "2+"],
+    address: "Navoiy ko'chasi, 25",
+    rating: 4.8,
+    reviewCount: "3.1k",
+    isFavorite: true,
+    lat: 41.311081,
+    lng: 69.240562,
+  },
+  {
+    id: "2",
+    name: "Boss Barbershop",
+    image:
+      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=400&fit=crop",
+    services: ["Soch", "Soqol", "Teri"],
     address: "Amir Temur shoh ko'chasi, 108",
     rating: 4.7,
     reviewCount: "2.7k",
@@ -52,9 +65,9 @@ const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
   },
   {
     id: "3",
-    name: "Sitora Salon",
+    name: "Malika Go'zallik Saloni",
     image:
-      "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?w=400&h=400&fit=crop",
+      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=400&fit=crop",
     services: ["Pardoz", "Soch", "Spa"],
     address: "Bobur ko'chasi, 42",
     rating: 4.9,
@@ -62,19 +75,6 @@ const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
     isFavorite: false,
     lat: 41.308234,
     lng: 69.253891,
-  },
-  {
-    id: "1",
-    name: "Malika Go'zallik Saloni",
-    image:
-      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=400&fit=crop",
-    services: ["Soch", "Tirnoq", "Yuz"],
-    address: "Navoiy ko'chasi, 25",
-    rating: 4.8,
-    reviewCount: "3.1k",
-    isFavorite: true,
-    lat: 41.311081,
-    lng: 69.240562,
   },
 ];
 
@@ -196,7 +196,7 @@ export default function Home() {
               onClick={() => handleSalonClick(salon)}
               onBookClick={() => handleBookClick(salon)}
               onLikeClick={() => console.log(`Like: ${salon.name}`)}
-              onCommentClick={() => console.log(`Comment: ${salon.name}`)}
+              onReviewsClick={() => navigate(`/salon/${salon.id}/reviews`)}
               onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
             />
           ))}
