@@ -10,7 +10,9 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { AuthGuard } from "./components/auth-guard";
 import "./app.css";
+import { Logo } from "./components/icons/Logo";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -118,11 +120,15 @@ export default function App() {
   // Show loading state until TMA is initialized
   if (!tmaReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-8 border-3 border-white/20 border-t-white rounded-full animate-spin" />
-          <span className="text-white/60 text-sm">Loading...</span>
-        </div>
+      // <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">
+      //   <div className="flex flex-col items-center gap-3">
+      //     <div className="size-8 border-3 border-white/20 border-t-white rounded-full animate-spin" />
+      //     <span className="text-white/60 text-sm">Loading...</span>
+      //   </div>
+      // </div>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+        <Logo width={180} height={80} />
+        <div className="size-8 mt-10 border-3 border-stone-900/20 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
@@ -152,7 +158,9 @@ function AppContent({ tmaReady, user }: { tmaReady: boolean; user: TmaUser }) {
         />
       </div>
 
-      <Outlet context={{ tmaReady, user } as TmaContext} />
+      <AuthGuard>
+        <Outlet context={{ tmaReady, user } as TmaContext} />
+      </AuthGuard>
     </>
   );
 }
