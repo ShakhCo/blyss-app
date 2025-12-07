@@ -262,7 +262,7 @@ export default function Chat() {
   return (
     <AppLayout back>
       {/* Chat Header - Fixed at top */}
-      <div className="fixed top-30 sm:top-24 left-0 right-0 z-40 flex items-center gap-3 px-4 py-3 border-b border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900 rounded-t-3xl shadow-sm">
+      <div className="max-w-lg mx-auto fixed top-30 sm:top-24 left-0 right-0 z-40 flex items-center gap-3 px-4 py-3 800 bg-white dark:bg-stone-900 rounded-t-3xl">
         <div className="relative shrink-0">
           <img
             src={conversation.avatar}
@@ -401,7 +401,7 @@ export default function Chat() {
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-white/95 via-white/80 to-transparent dark:from-stone-900/95 dark:via-stone-900/80 pointer-events-none" />
 
         {/* Input container */}
-        <div className="relative flex items-center gap-2 bg-white/95 dark:bg-stone-800/95 backdrop-blur-lg rounded-3xl shadow-lg shadow-stone-200/50 dark:shadow-stone-950/50 border border-stone-200 dark:border-stone-700 px-4 py-2">
+        <div className="max-w-lg mx-auto relative flex items-center gap-2 bg-white/95 dark:bg-stone-800/95 backdrop-blur-lg rounded-3xl shadow-lg shadow-stone-200/50 dark:shadow-stone-950/50 border border-stone-200 dark:border-stone-700 px-4 py-2">
           <textarea
             ref={inputRef}
             value={message}

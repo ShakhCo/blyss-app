@@ -153,6 +153,15 @@ body {
   }
 }
 
+/* Hide scrollbar utility */
+@utility scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
+
 /* Loading bar animation */
 @keyframes loading-bar {
   0% {

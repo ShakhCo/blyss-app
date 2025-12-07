@@ -212,9 +212,9 @@ export default function SalonReviews() {
 
                 <div className="flex text-sm gap flex-col mt-2">
                   <span className="font-semibold">Xizmatlar: </span>
-                  <div>
-                    {review.services.map(i => (
-                      <span>{i}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {review.services.map((service, index) => (
+                      <span key={index}>{service}{index < review.services.length - 1 && ","}</span>
                     ))}
                   </div>
                 </div>

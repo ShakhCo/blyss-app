@@ -83,13 +83,13 @@ export function AppLayout({
   }
 
   return (
-    <div className="h-screen flex flex-col bg-stone-900 overflow-hidden">
+    <div className="max-w-lg mx-auto h-screen flex flex-col bg-stone-900 overflow-hidden">
       {/* Fixed Header with Safe Area */}
       <div
         className="shrink-0 z-50 bg-stone-900"
         style={{ paddingTop: safeAreaInsets?.top ?? 0 }}
       >
-        <div className="pb-2">
+        <div className="py-3">
           <Logo />
           <div className="text-white text-center font-medium text-sm pt-2">
             {locationText}

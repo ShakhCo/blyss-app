@@ -16,5 +16,4 @@ export default [
   route("booking/add-service", "routes/booking-add-service.tsx"),
   route("map", "routes/map.tsx"),
   route("profile", "routes/profile.tsx"),
-  route("test", "routes/test.tsx"),
 ] satisfies RouteConfig;

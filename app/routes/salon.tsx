@@ -377,7 +377,7 @@ export default function SalonLayout() {
 
   return (
     <AppLayout back removeHeader>
-      <div className="min-h-screen bg-white dark:bg-stone-900">
+      <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900">
 
         {/* Hero Section with Image */}
         <div className="h-48 sticky top-0 z-20 relative">

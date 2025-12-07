@@ -126,7 +126,7 @@ export function BottomSheet({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="absolute bottom-0 left-0 right-0 flex flex-col bg-white dark:bg-stone-900 rounded-t-3xl overflow-hidden touch-none"
+            className="max-w-lg mx-auto absolute bottom-0 left-0 right-0 flex flex-col bg-white dark:bg-stone-900 rounded-t-3xl overflow-hidden touch-none"
             style={{ maxHeight }}
           >
             {/* Drag Handle */}

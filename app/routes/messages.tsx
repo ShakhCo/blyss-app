@@ -91,7 +91,7 @@ export default function Messages() {
 
   return (
     <AppLayout back>
-      <div className="pb-6">
+      <div className="max-w-lg mx-auto pb-6">
         {/* Header */}
         
         <div className="px-4 pt-6 pb-4">

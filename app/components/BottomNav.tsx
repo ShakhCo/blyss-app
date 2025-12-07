@@ -67,7 +67,7 @@ export function BottomNav() {
       />
       <div className="absolute inset-0 -z-10 bg-gradient-to-t from-white/95 via-white/80 to-transparent dark:from-stone-900/95 dark:via-stone-900/80 pointer-events-none" />
 
-      <div className="relative bg-white/95 dark:bg-stone-800/95 backdrop-blur-lg rounded-[1.75rem] shadow-lg shadow-stone-200/50 dark:shadow-stone-950/50 border-t border-t-stone-200 dark:border-t-stone-900">
+      <div className="max-w-lg mx-auto relative bg-white/95 dark:bg-stone-800/95 backdrop-blur-lg rounded-[1.75rem] shadow-lg shadow-stone-200/50 dark:shadow-stone-950/50 border-t border-t-stone-200 dark:border-t-stone-900">
         <div className="grid grid-cols-4 gap-1 items-center justify-around h-16 px-2 overflow-x-auto scrollbar-hide">
           {navItems.map((item) => (
             <div key={item.id} className="">
