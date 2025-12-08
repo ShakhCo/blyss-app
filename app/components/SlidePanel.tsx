@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -12,6 +12,7 @@ export interface SlidePanelProps {
   className?: string;
   overlayClassName?: string;
   contentClassName?: string;
+  style?: CSSProperties;
 }
 
 export function SlidePanel({
@@ -24,6 +25,7 @@ export function SlidePanel({
   className = "",
   overlayClassName = "",
   contentClassName = "",
+  style,
 }: SlidePanelProps) {
   // Lock body scroll when panel is open
   useEffect(() => {
@@ -57,11 +59,12 @@ export function SlidePanel({
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className={`fixed inset-0 z-50 bg-white dark:bg-stone-900 ${className}`}
+          className={`fixed inset-0 z-50 bg-white dark:bg-stone-900 flex flex-col ${className}`}
+          style={style}
         >
           {/* Header */}
           {showHeader && (
-            <div className="sticky top-0 z-10 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
+            <div className="shrink-0 z-10 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
               <div className="flex items-center justify-between px-4 h-14">
                 <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
                   {title}
@@ -80,7 +83,7 @@ export function SlidePanel({
           )}
 
           {/* Content */}
-          <div className={`${contentClassName}`}>
+          <div className={`flex-1 overflow-y-auto ${contentClassName}`}>
             {children}
           </div>
         </motion.div>

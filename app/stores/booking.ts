@@ -214,7 +214,7 @@ interface BookingUIState {
 const defaultUIState = {
   isStylistExpanded: false,
   isLocationExpanded: false,
-  isServicesExpanded: false,
+  isServicesExpanded: true,
   isCalendarExpanded: true,
   isTimeExpanded: true,
   isPaymentExpanded: false,

@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react";
 import { ChevronRight, MessageCircle, Navigation, Star } from "lucide-react";
+import type { Review, Stylist } from "~/components/ReviewCard";
 
 export interface SalonFeedData {
   id: string;
@@ -11,6 +12,8 @@ export interface SalonFeedData {
   rating?: number;
   distance?: string;
   gallery?: string[];
+  reviews?: Review[];
+  stylists?: Stylist[];
 }
 
 export interface SalonFeedCardProps {
@@ -18,8 +21,8 @@ export interface SalonFeedCardProps {
   onClick?: () => void;
   onBookClick?: () => void;
   onLikeClick?: () => void;
-  onReviewsClick?: () => void;
   onNavigateClick?: () => void;
+  onReviewsClick?: () => void;
 }
 
 export function SalonFeedCard({
@@ -27,8 +30,8 @@ export function SalonFeedCard({
   onClick,
   onBookClick,
   onLikeClick,
-  onReviewsClick,
   onNavigateClick,
+  onReviewsClick,
 }: SalonFeedCardProps) {
   const galleryImages = salon.gallery ?? [
     salon.image,

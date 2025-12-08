@@ -292,11 +292,3 @@ export default function Search() {
   );
 }
 
-// Loading state shown while the route is loading
-export function HydrateFallback() {
-  return (
-    <AppLayout>
-      <SearchPageSkeleton />
-    </AppLayout>
-  );
-}

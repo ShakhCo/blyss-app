@@ -6,6 +6,7 @@ import { BottomNav } from "./BottomNav";
 import { useLocationStore, selectDisplayName } from "~/stores/location";
 import { useBottomNavStore } from "~/stores/bottomNav";
 import { useScrollRestoration } from "~/hooks/useScrollRestoration";
+import { SafeAreaProvider } from "~/contexts/safe-area";
 
 type TmaContext = {
   tmaReady: boolean;
@@ -39,6 +40,12 @@ export function AppLayout({
 
   // Get safe area insets from Telegram viewport
   const safeAreaInsets = useSignal(viewport.safeAreaInsets);
+  const safeAreaValue = {
+    top: safeAreaInsets?.top ?? 0,
+    bottom: safeAreaInsets?.bottom ?? 0,
+    left: safeAreaInsets?.left ?? 0,
+    right: safeAreaInsets?.right ?? 0,
+  };
 
   // Fetch location after hydration (only if needed - store handles the 1 hour check)
   useEffect(() => {
@@ -75,42 +82,46 @@ export function AppLayout({
 
   if (removeHeader) {
     return (
-      <div>
-        {children}
-        <BottomNav />
-      </div>
+      <SafeAreaProvider value={safeAreaValue}>
+        <div>
+          {children}
+          <BottomNav />
+        </div>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <div className="max-w-lg mx-auto h-screen flex flex-col bg-stone-900 overflow-hidden">
-      {/* Fixed Header with Safe Area */}
-      <div
-        className="shrink-0 z-50 bg-stone-900"
-        style={{ paddingTop: safeAreaInsets?.top ?? 0 }}
-      >
-        <div className="py-3">
-          <Logo />
-          <div className="text-white text-center font-medium text-sm pt-2">
-            {locationText}
+    <SafeAreaProvider value={safeAreaValue}>
+      <div className="max-w-lg mx-auto h-screen flex flex-col bg-stone-900 overflow-hidden">
+        {/* Fixed Header with Safe Area */}
+        <div
+          className="shrink-0 z-50 bg-stone-900"
+          style={{ paddingTop: safeAreaValue.top }}
+        >
+          <div className="pb-3">
+            <Logo />
+            <div className="text-white text-center font-medium text-sm pt-2">
+              {locationText}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full bg-white dark:bg-stone-900 rounded-t-3xl overflow-hidden">
-          <div
-            ref={scrollRef}
-            className={`h-full overflow-y-auto scrollbar-hide ${isBottomNavVisible ? 'pb-20' : ''}`}
-          >
-            {children}
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full bg-white dark:bg-stone-900 rounded-t-3xl overflow-hidden">
+            <div
+              ref={scrollRef}
+              className={`h-full overflow-y-auto scrollbar-hide ${isBottomNavVisible ? 'pb-20' : ''}`}
+            >
+              {children}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Fixed Footer with Safe Area (BottomNav handles its own padding) */}
-      <BottomNav />
-    </div>
+        {/* Fixed Footer with Safe Area (BottomNav handles its own padding) */}
+        <BottomNav />
+      </div>
+    </SafeAreaProvider>
   );
 }

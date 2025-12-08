@@ -1,30 +1,22 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { useUserStore } from "~/stores/user-store";
-import { retrieveLaunchParams, requestContact } from "@tma.js/sdk";
+import { retrieveRawInitData } from "@tma.js/sdk-react";
+import { Logo } from "~/components/icons/Logo";
 
-async function registerUser(
-  telegramId: number,
-  firstName: string,
-  lastName: string,
-  phoneNumber: string
-) {
-  const response = await fetch("https://id.automations.uz/api/auth/register", {
+async function registerWithTelegramInitData(initDataRaw: string) {
+  const response = await fetch("https://id.automations.uz/api/auth/register-with-telegram-init-data", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      Authorization: `tma ${initDataRaw}`,
     },
-    body: JSON.stringify({
-      telegram_id: telegramId,
-      first_name: firstName,
-      last_name: lastName,
-      phone_number: phoneNumber,
-    }),
+    credentials: "include", // Required for cookies
   });
 
   if (!response.ok) {
-    throw new Error("Registration failed");
+    const error = await response.json();
+    throw new Error(error.error || "Registration failed");
   }
 
   return response.json();
@@ -93,6 +85,7 @@ function OnboardingCarousel({
   onComplete,
   dragX,
   isDragging,
+  isLoading,
   onTouchStart,
   onTouchMove,
   onTouchEnd,
@@ -105,6 +98,7 @@ function OnboardingCarousel({
   onComplete: () => void;
   dragX: number;
   isDragging: boolean;
+  isLoading: boolean;
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: () => void;
@@ -208,9 +202,17 @@ function OnboardingCarousel({
           {isLastStep ? (
             <button
               onClick={onComplete}
-              className="w-full max-w-[339px] bg-primary text-white font-bold py-4 px-6 rounded-full text-base"
+              disabled={isLoading}
+              className="w-full max-w-[339px] bg-primary text-white font-bold py-4 px-6 rounded-full text-base disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Boshlash
+              {isLoading ? (
+                <>
+                  <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Yuklanmoqda...
+                </>
+              ) : (
+                "Boshlash"
+              )}
             </button>
           ) : (
             <button
@@ -242,55 +244,68 @@ export default function Register() {
   const setUser = useUserStore((state) => state.setUser);
   const [currentStep, setCurrentStep] = useState(0);
   const [dragX, setDragX] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const startXRef = useRef(0);
   const isDraggingRef = useRef(false);
   const containerWidthRef = useRef(0);
 
-  const handleComplete = async () => {
-    setIsLoading(true);
+  // Auto-register on page load
+  useEffect(() => {
+    const autoRegister = async () => {
+      try {
+        const initDataRaw = retrieveRawInitData();
 
-    try {
-      // Request phone number from user
-      const contactResult = await requestContact();
-      let phoneNumber = contactResult.contact.phone_number;
-      // Ensure phone number starts with +
-      if (!phoneNumber.startsWith("+")) {
-        phoneNumber = "+" + phoneNumber;
-      }
-
-      // Get telegram user data
-      const params = retrieveLaunchParams();
-      const tgUser = params?.tgWebAppData?.user;
-
-      if (tgUser) {
-        try {
-          const userData = await registerUser(
-            tgUser.id,
-            tgUser.first_name,
-            tgUser.last_name || "",
-            phoneNumber
-          );
-
-          // Store API response data in persistent store
-          setUser(userData);
-
-          navigate("/", { replace: true });
-        } catch {
-          alert("Error while registering")
+        if (!initDataRaw) {
+          console.log("Telegram init data not found");
+          setShowOnboarding(true);
+          setIsLoading(false);
+          return;
         }
-      } else {
-        alert("no user")
+
+        const userData = await registerWithTelegramInitData(initDataRaw);
+
+        // Store user data (excluding is_new_user)
+        const { is_new_user, ...user } = userData;
+        setUser(user);
+        setIsRegistered(true);
+
+        // If existing user, redirect directly to home (don't show onboarding)
+        if (!is_new_user) {
+          navigate("/", { replace: true });
+          return; // Keep loading spinner until navigation completes
+        }
+
+        // New user - show onboarding
+        setShowOnboarding(true);
+        setIsLoading(false);
+      } catch (error) {
+        console.log("Auto-registration failed:", error);
+        setShowOnboarding(true);
+        setIsLoading(false);
       }
+    };
 
+    autoRegister();
+  }, [setUser, navigate]);
 
-    } catch (error) {
-      // User cancelled or error - just wait, don't redirect
-      console.log("Contact request cancelled or failed:", error);
-    } finally {
-      setIsLoading(false);
+  // Handle "Boshlash" button click - just navigate if already registered
+  const handleComplete = () => {
+    if (isRegistered) {
+      navigate("/", { replace: true });
     }
   };
+
+  // Show loading while checking registration or redirecting
+  if (isLoading || !showOnboarding) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+        <Logo width={180} height={80} />
+        <div className="size-8 mt-10 border-3 border-stone-900/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const handleNext = () => {
     if (currentStep < onboardingSteps.length - 1) {
@@ -355,6 +370,7 @@ export default function Register() {
       onComplete={handleComplete}
       dragX={dragX}
       isDragging={isDraggingRef.current}
+      isLoading={isLoading}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

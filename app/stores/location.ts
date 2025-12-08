@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { locationManager } from "@tma.js/sdk-react";
 
 interface LocationData {
   street: string | null;
@@ -24,6 +25,7 @@ interface LocationState extends LocationData {
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const FIVE_MINUTE_MS = 5 * 60 * 1000;
 
 export const useLocationStore = create<LocationState>()(
   persist(
@@ -59,7 +61,7 @@ export const useLocationStore = create<LocationState>()(
       needsRefresh: () => {
         const { lastUpdated } = get();
         if (!lastUpdated) return true;
-        return Date.now() - lastUpdated > ONE_HOUR_MS;
+        return Date.now() - lastUpdated > FIVE_MINUTE_MS;
       },
 
       fetchLocation: async () => {
@@ -71,7 +73,13 @@ export const useLocationStore = create<LocationState>()(
         }
 
         // Check if running on client
-        if (typeof window === "undefined" || !navigator.geolocation) {
+        if (typeof window === "undefined") {
+          set({ error: "Location not supported", isLoading: false });
+          return;
+        }
+
+        // Check if Telegram Location Manager is supported
+        if (!locationManager.isSupported()) {
           set({ error: "Location not supported", isLoading: false });
           return;
         }
@@ -79,13 +87,20 @@ export const useLocationStore = create<LocationState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const position = await new Promise<GeolocationPosition>(
-            (resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject);
-            }
-          );
+          // Mount the location manager to retrieve settings from Telegram
+          if (!locationManager.isMounted()) {
+            await locationManager.mount();
+          }
 
-          const { latitude, longitude } = position.coords;
+          // Request location using Telegram's Location Manager
+          const location = await locationManager.requestLocation();
+
+          if (!location) {
+            set({ error: "Could not get location", isLoading: false });
+            return;
+          }
+
+          const { latitude, longitude } = location;
 
           // Reverse geocode using OpenStreetMap Nominatim API (in Uzbek)
           const response = await fetch(
@@ -121,18 +136,8 @@ export const useLocationStore = create<LocationState>()(
         } catch (err) {
           let errorMessage = "Could not get location";
 
-          if (err instanceof GeolocationPositionError) {
-            switch (err.code) {
-              case err.PERMISSION_DENIED:
-                errorMessage = "Location access denied";
-                break;
-              case err.POSITION_UNAVAILABLE:
-                errorMessage = "Location unavailable";
-                break;
-              case err.TIMEOUT:
-                errorMessage = "Location request timed out";
-                break;
-            }
+          if (err instanceof Error) {
+            errorMessage = err.message || errorMessage;
           }
 
           set({ error: errorMessage, isLoading: false });

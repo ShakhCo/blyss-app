@@ -63,6 +63,11 @@ export default function App() {
   const [user, setUser] = useState<TmaUser | null>(null);
 
   useEffect(() => {
+    // Initialize Eruda console for debugging
+    import("eruda").then((eruda) => {
+      eruda.default.init();
+    });
+
     // Initialize TMA SDK only on client side
     import("@tma.js/sdk-react").then(async ({ init, backButton, retrieveLaunchParams, viewport, swipeBehavior }) => {
       try {
@@ -158,7 +163,7 @@ function AppContent({ tmaReady, user }: { tmaReady: boolean; user: TmaUser }) {
         />
       </div>
 
-      <AuthGuard>
+      <AuthGuard tmaUser={user}>
         <Outlet context={{ tmaReady, user } as TmaContext} />
       </AuthGuard>
     </>

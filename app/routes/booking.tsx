@@ -373,6 +373,27 @@ export default function Booking() {
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 className="overflow-hidden"
               >
+                {selectedStylist.id !== "anyone" && <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStylist({ id: "anyone", name: "Istalgan", avatar: "", rating: 0, specialty: "", level: "standart" });
+                    setIsStylistExpanded(false);
+                  }}
+                  className="bg-primary/10 w-full px-4 py-3 flex items-center gap-3 border-b border-stone-100 dark:border-stone-800"
+                >
+                  <div className="flex-1 min-w-0 text-left">
+                    <h4 className="font-medium text-primary">
+                      Istalgan mutaxassis
+                    </h4>
+                  </div>
+                  <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${selectedStylist.id === "anyone"
+                    ? "border-primary bg-primary"
+                    : "border-stone-300 dark:border-stone-600"
+                    }`}>
+                    {selectedStylist.id === "anyone" && <Check size={12} className="text-white" />}
+                  </div>
+                </button>}
+
                 {/* Level tabs */}
                 <div className="border-b border-stone-200 dark:border-stone-800">
                   <div className="flex">

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import type { Route } from "./+types/home";
 import { AppLayout } from "~/components/AppLayout";
@@ -15,6 +15,9 @@ import { useScrollProgress } from "~/hooks/useScrollProgress";
 import { bottomNav } from "~/stores/bottomNav";
 import { HomeSkeleton } from "~/components/skeletons";
 import { MapPin, Star } from "lucide-react";
+import { useUserStore } from "~/stores/user-store";
+import { ReviewsModal } from "~/components/ReviewsModal";
+import { salonsData } from "./salon";
 
 // Import service icons
 import scissorIcon from "~/assets/icons/scissor.png";
@@ -78,16 +81,22 @@ const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
   },
 ];
 
-const feedSalons: SalonFeedData[] = nearestSalons.map((salon) => ({
-  id: salon.id,
-  name: salon.name,
-  image: salon.image,
-  address: salon.address,
-  likes: 75,
-  rating: salon.rating,
-  comments: 75,
-  distance: "2.4km sizdan",
-}));
+const feedSalons: SalonFeedData[] = nearestSalons.map((salon) => {
+  const salonDetail = salonsData[salon.id];
+  return {
+    id: salon.id,
+    name: salon.name,
+    image: salon.image,
+    address: salon.address,
+    likes: 75,
+    rating: salon.rating,
+    comments: salonDetail?.reviews.length ?? 0,
+    distance: "2.4km sizdan",
+    gallery: salonDetail?.gallery,
+    reviews: salonDetail?.reviews,
+    stylists: salonDetail?.stylists,
+  };
+});
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -99,6 +108,8 @@ export function meta({ }: Route.MetaArgs) {
 export default function Home() {
   const navigate = useNavigate();
   const { ref: servicesRef, scrollProgress } = useScrollProgress();
+  const user = useUserStore((state) => state.user);
+  const [reviewsSalon, setReviewsSalon] = useState<SalonFeedData | null>(null);
 
   // Show bottom nav when home page mounts
   useEffect(() => {
@@ -124,6 +135,10 @@ export default function Home() {
     navigate(`/salon/${salon.id}`);
   };
 
+  const handleReviewsClick = (salon: SalonFeedData) => {
+    setReviewsSalon(salon);
+  };
+
   return (
     <AppLayout>
       <div>
@@ -132,6 +147,8 @@ export default function Home() {
           isVisible={showStickyHeader}
           onServiceClick={handleServiceClick}
         />
+
+        {user ? user.telegram_id : '+'}
 
         {/* Header with Search */}
         <div className="px-4 py-6">
@@ -196,12 +213,23 @@ export default function Home() {
               onClick={() => handleSalonClick(salon)}
               onBookClick={() => handleBookClick(salon)}
               onLikeClick={() => console.log(`Like: ${salon.name}`)}
-              onReviewsClick={() => navigate(`/salon/${salon.id}/reviews`)}
               onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
+              onReviewsClick={() => handleReviewsClick(salon)}
             />
           ))}
         </div>
       </div>
+
+      {/* Single Reviews Modal for all salon cards */}
+      <ReviewsModal
+        isOpen={reviewsSalon !== null}
+        onClose={() => setReviewsSalon(null)}
+        salonName={reviewsSalon?.name ?? ""}
+        rating={reviewsSalon?.rating ?? 0}
+        reviewCount={reviewsSalon?.comments ?? 0}
+        reviews={reviewsSalon?.reviews ?? []}
+        stylists={reviewsSalon?.stylists}
+      />
     </AppLayout>
   );
 }

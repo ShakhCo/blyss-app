@@ -84,6 +84,49 @@ export default function SalonGallery() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, selectedImageIndex, images.length]);
 
+  // Handle Telegram back button - close modal instead of navigating back
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cleanup: (() => void) | undefined;
+
+    import("@tma.js/sdk-react").then(({ backButton }) => {
+      const handleBackClick = () => {
+        closeModal();
+      };
+
+      backButton.onClick(handleBackClick);
+
+      cleanup = () => {
+        backButton.offClick(handleBackClick);
+      };
+    });
+
+    return () => {
+      cleanup?.();
+    };
+  }, [isOpen]);
+
+  // Handle browser back button via popstate
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Push a state when modal opens
+    window.history.pushState({ galleryModal: true }, "");
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (isOpen) {
+        closeModal();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [isOpen]);
+
   return (
     <>
       {/* Image Grid */}
