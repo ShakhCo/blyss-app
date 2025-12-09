@@ -44,7 +44,7 @@ const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
     id: "1",
     name: "Shark Barbershop",
     image:
-      "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400&h=400&fit=crop",
+      "https://st3.depositphotos.com/3919539/16400/i/450/depositphotos_164002372-stock-photo-man-stylish-client-in-barbershop.jpg",
     services: ["Soch", "Soqol", "2+"],
     address: "Navoiy ko'chasi, 25",
     rating: 4.8,
@@ -57,7 +57,7 @@ const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
     id: "2",
     name: "Boss Barbershop",
     image:
-      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=400&fit=crop",
+      "https://img.freepik.com/premium-photo/young-man-with-trendy-haircut-barber-shop-barber-does-hairstyle-beard-trim_179755-8600.jpg",
     services: ["Soch", "Soqol", "Teri"],
     address: "Amir Temur shoh ko'chasi, 108",
     rating: 4.7,
@@ -70,7 +70,7 @@ const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
     id: "3",
     name: "Malika Go'zallik Saloni",
     image:
-      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=400&fit=crop",
+      "https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile",
     services: ["Pardoz", "Soch", "Spa"],
     address: "Bobur ko'chasi, 42",
     rating: 4.9,
