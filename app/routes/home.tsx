@@ -148,8 +148,6 @@ export default function Home() {
           onServiceClick={handleServiceClick}
         />
 
-        {user ? user.telegram_id : '+'}
-
         {/* Header with Search */}
         <div className="px-4 py-6">
           <SearchBar
