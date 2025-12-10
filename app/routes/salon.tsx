@@ -48,7 +48,7 @@ export const salonsData: Record<string, {
   "1": {
     id: "1",
     name: "Shark Barbershop",
-    image: "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&h=600&fit=crop",
+    image: "https://st3.depositphotos.com/3919539/16400/i/450/depositphotos_164002372-stock-photo-man-stylish-client-in-barbershop.jpg",
     gallery: [
       "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400&h=400&fit=crop",
       "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=400&fit=crop",
