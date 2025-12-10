@@ -44,7 +44,7 @@ const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
     id: "1",
     name: "Shark Barbershop",
     image:
-      "https://st3.depositphotos.com/3919539/16400/i/450/depositphotos_164002372-stock-photo-man-stylish-client-in-barbershop.jpg",
+      "https://yonolighting.com/wp-content/uploads/2024/09/Top-10-Best-Lighting-Ideas-for-Your-Barber-Shop.webp",
     services: ["Soch", "Soqol", "2+"],
     address: "Navoiy ko'chasi, 25",
     rating: 4.8,

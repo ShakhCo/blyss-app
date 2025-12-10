@@ -48,7 +48,7 @@ export const salonsData: Record<string, {
   "1": {
     id: "1",
     name: "Shark Barbershop",
-    image: "https://img.freepik.com/premium-photo/young-man-with-trendy-haircut-barber-shop-barber-does-hairstyle-beard-trim_179755-8600.jpg",
+    image: "https://yonolighting.com/wp-content/uploads/2024/09/Top-10-Best-Lighting-Ideas-for-Your-Barber-Shop.webp",
     gallery: [
       "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400&h=400&fit=crop",
       "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=400&fit=crop",
