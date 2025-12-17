@@ -6,6 +6,6 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
   server: {
-    allowedHosts: ['barbershop-miniapp.automations.uz']
+    allowedHosts: ['barbershop-miniapp-beta.automations.uz']
   }
 });

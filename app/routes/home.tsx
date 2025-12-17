@@ -15,7 +15,6 @@ import { useScrollProgress } from "~/hooks/useScrollProgress";
 import { bottomNav } from "~/stores/bottomNav";
 import { HomeSkeleton } from "~/components/skeletons";
 import { MapPin, Star } from "lucide-react";
-import { useUserStore } from "~/stores/user-store";
 import { ReviewsModal } from "~/components/ReviewsModal";
 import { salonsData } from "./salon";
 
@@ -108,7 +107,6 @@ export function meta({ }: Route.MetaArgs) {
 export default function Home() {
   const navigate = useNavigate();
   const { ref: servicesRef, scrollProgress } = useScrollProgress();
-  const user = useUserStore((state) => state.user);
   const [reviewsSalon, setReviewsSalon] = useState<SalonFeedData | null>(null);
 
   // Show bottom nav when home page mounts

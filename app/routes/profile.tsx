@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useOutletContext, Link } from "react-router";
+import { Link } from "react-router";
 import { AppLayout } from "~/components/AppLayout";
 import type { Route } from "./+types/profile";
-import type { TmaContext } from "~/root";
 import { bottomNav } from "~/stores/bottomNav";
+import { useUserStore } from "~/stores/user-store";
 import {
   Calendar,
   Heart,
@@ -108,7 +108,7 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Profile() {
-  const { user } = useOutletContext<TmaContext>();
+  const user = useUserStore((state) => state.user);
 
   useEffect(() => {
     bottomNav.show();
@@ -122,20 +122,14 @@ export default function Profile() {
           <div className="flex items-center gap-4">
             {/* Avatar */}
             <div className="relative">
-              {user?.photo_url ? (
-                <img
-                  src={user.photo_url}
-                  alt={user.first_name}
-                  className="size-20 rounded-full object-cover ring-4 ring-primary/20"
-                />
-              ) : (
-                <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-primary/20">
-                  <span className="text-2xl font-bold text-primary">
-                    {user?.first_name?.charAt(0) || "U"}
-                  </span>
-                </div>
+              <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-primary/20">
+                <span className="text-2xl font-bold text-primary">
+                  {user?.first_name?.charAt(0) || "U"}
+                </span>
+              </div>
+              {user?.is_verified && (
+                <div className="absolute -bottom-1 -right-1 size-6 bg-green-500 rounded-full border-3 border-white dark:border-stone-900" />
               )}
-              <div className="absolute -bottom-1 -right-1 size-6 bg-green-500 rounded-full border-3 border-white dark:border-stone-900" />
             </div>
 
             {/* User Info */}
@@ -143,11 +137,9 @@ export default function Profile() {
               <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100">
                 {user?.first_name} {user?.last_name}
               </h1>
-              {user?.username && (
-                <p className="text-stone-500 dark:text-stone-400 text-sm">
-                  @{user.username}
-                </p>
-              )}
+              <p className="text-stone-500 dark:text-stone-400 text-sm">
+                +{user?.phone_number}
+              </p>
               <button
                 type="button"
                 className="mt-2 text-sm text-primary font-medium"
@@ -261,8 +253,8 @@ export default function Profile() {
           ))}
 
           {/* Logout Button */}
-          <button
-            type="button"
+          <Link
+            to="/logout"
             className="w-full flex items-center gap-3 px-4 py-3.5 bg-red-50 dark:bg-red-900/20 rounded-2xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
           >
             <div className="size-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
@@ -271,7 +263,7 @@ export default function Profile() {
             <span className="flex-1 font-medium text-red-500 text-left">
               Chiqish
             </span>
-          </button>
+          </Link>
         </div>
 
         {/* App Version */}

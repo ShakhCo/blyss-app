@@ -1,88 +1,60 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
-import { useUserStore } from "~/stores/user-store";
-import { useLocationStore } from "~/stores/location";
-import { useBookingStore, useBookingCartStore } from "~/stores/booking";
+import { useUserStore, isAuthenticated } from "~/stores/user-store";
 
-const PUBLIC_ROUTES = ["/register"];
-
-interface TmaUser {
-  id: number;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-}
-
-function clearAllStores() {
-  // Clear all persisted stores
-  useUserStore.getState().clearUser();
-  useLocationStore.persist.clearStorage();
-  useBookingStore.persist.clearStorage();
-  useBookingCartStore.persist.clearStorage();
-}
-
-function validateAuth(
-  user: { _id: string; telegram_id: number } | null,
-  tmaUser: TmaUser | null
-): boolean {
-  // Check if user has _id
-  if (!user?._id) {
-    return false;
-  }
-
-  // Check if we have TMA user
-  if (!tmaUser?.id) {
-    return false;
-  }
-
-  // Check if telegram_id matches
-  if (user.telegram_id !== tmaUser.id) {
-    return false;
-  }
-
-  return true;
-}
+const PUBLIC_ROUTES = ["/onboarding", "/login", "/logout"];
 
 interface AuthGuardProps {
   children: React.ReactNode;
-  tmaUser: TmaUser;
 }
 
-export function AuthGuard({ children, tmaUser }: AuthGuardProps) {
-  const user = useUserStore((state) => state.user);
+export function AuthGuard({ children }: AuthGuardProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isValidating, setIsValidating] = useState(true);
-  const [isAuthed, setIsAuthed] = useState(false);
-
-  useEffect(() => {
-    const isPublicRoute = PUBLIC_ROUTES.some((route) =>
-      location.pathname.startsWith(route)
-    );
-
-    const valid = validateAuth(user, tmaUser);
-
-    if (!valid && !isPublicRoute) {
-      // Clear all stores and redirect to register
-      clearAllStores();
-      navigate("/register", { replace: true });
-    }
-
-    setIsAuthed(valid);
-    setIsValidating(false);
-  }, [user, tmaUser, location.pathname, navigate]);
+  const user = useUserStore((state) => state.user);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const isPublicRoute = PUBLIC_ROUTES.some((route) =>
     location.pathname.startsWith(route)
   );
 
-  // Show nothing while validating
-  if (isValidating) {
+  // Wait for zustand persist to hydrate from localStorage
+  useEffect(() => {
+    const unsubscribe = useUserStore.persist.onFinishHydration(() => {
+      setIsHydrated(true);
+    });
+
+    // Check if already hydrated
+    if (useUserStore.persist.hasHydrated()) {
+      setIsHydrated(true);
+    }
+
+    return unsubscribe;
+  }, []);
+
+  // Handle auth redirect after hydration
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const authenticated = isAuthenticated(user);
+
+    if (!authenticated && !isPublicRoute) {
+      navigate("/onboarding/introduction", { replace: true });
+    }
+  }, [user, isPublicRoute, navigate, isHydrated]);
+
+  // Show nothing while hydrating
+  if (!isHydrated) {
     return null;
   }
 
-  if (!isAuthed && !isPublicRoute) {
+  // Allow public routes regardless of auth state
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
+
+  // Block unauthenticated users from protected routes
+  if (!isAuthenticated(user)) {
     return null;
   }
 

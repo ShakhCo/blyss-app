@@ -188,3 +188,34 @@ body {
     transform: translateX(100%);
   }
 }
+
+/* Shake animation for validation errors */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-4px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Success wave animation for OTP inputs */
+@keyframes success-wave {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.animate-success-wave {
+  animation: success-wave 0.4s ease-in-out both;
+}
