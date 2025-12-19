@@ -45,7 +45,6 @@ export function isAuthenticated(user: UserData | null): boolean {
     user.id &&
     user.telegram_id &&
     user.first_name &&
-    user.last_name &&
     user.phone_number &&
     user.is_verified
   );

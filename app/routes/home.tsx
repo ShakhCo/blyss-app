@@ -14,6 +14,7 @@ import { SectionHeader } from "~/components/SectionHeader";
 import { useScrollProgress } from "~/hooks/useScrollProgress";
 import { bottomNav } from "~/stores/bottomNav";
 import { HomeSkeleton } from "~/components/skeletons";
+import { useOnboardingStore } from "~/stores/onboarding-store";
 import { MapPin, Star } from "lucide-react";
 import { ReviewsModal } from "~/components/ReviewsModal";
 import { salonsData } from "./salon";
@@ -108,10 +109,12 @@ export default function Home() {
   const navigate = useNavigate();
   const { ref: servicesRef, scrollProgress } = useScrollProgress();
   const [reviewsSalon, setReviewsSalon] = useState<SalonFeedData | null>(null);
+  const clearOnboardingData = useOnboardingStore((state) => state.clearData);
 
-  // Show bottom nav when home page mounts
+  // Show bottom nav and clear onboarding data when home page mounts
   useEffect(() => {
     bottomNav.show();
+    clearOnboardingData();
   }, []);
 
   // Show sticky header when scrolled past 50%

@@ -48,11 +48,11 @@ export function AppLayout({
   };
 
   // Fetch location after hydration (only if needed - store handles the 1 hour check)
-  useEffect(() => {
-    if (hasHydrated) {
-      fetchLocation();
-    }
-  }, [hasHydrated, fetchLocation]);
+  // useEffect(() => {
+  //   if (hasHydrated) {
+  //     fetchLocation();
+  //   }
+  // }, [hasHydrated, fetchLocation]);
 
   // Handle Telegram back button
   useEffect(() => {
@@ -93,17 +93,17 @@ export function AppLayout({
 
   return (
     <SafeAreaProvider value={safeAreaValue}>
-      <div className="max-w-lg mx-auto h-screen flex flex-col bg-stone-900 overflow-hidden">
+      <div className="max-w-lg mx-auto h-screen flex flex-col bg-gray-950 overflow-hidden">
         {/* Fixed Header with Safe Area */}
         <div
-          className="shrink-0 z-50 bg-stone-900"
+          className="shrink-0 z-50 bg-gray-950"
           style={{ paddingTop: safeAreaValue.top }}
         >
           <div className="pb-3">
             <Logo />
-            <div className="text-white text-center font-medium text-sm pt-2">
+            {/* <div className="text-white text-center font-medium text-sm pt-2">
               {locationText}
-            </div>
+            </div> */}
           </div>
         </div>
 

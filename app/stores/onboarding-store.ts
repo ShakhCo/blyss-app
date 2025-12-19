@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 interface OnboardingData {
-  id: string;
-  phone_number: string;
+  id?: string;
+  phone_number?: string;
   telegram_id?: number;
   first_name?: string;
   last_name?: string;
@@ -11,7 +11,7 @@ interface OnboardingData {
 
 interface OnboardingState {
   data: OnboardingData | null;
-  setData: (data: OnboardingData) => void;
+  setData: (data: Partial<OnboardingData>) => void;
   clearData: () => void;
 }
 
@@ -19,6 +19,8 @@ const initialData: OnboardingData | null = null;
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
   data: initialData,
-  setData: (data) => set({ data }),
+  setData: (newData) => set((state) => ({
+    data: state.data ? { ...state.data, ...newData } : newData
+  })),
   clearData: () => set({ data: initialData }),
 }));

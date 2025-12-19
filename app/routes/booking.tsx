@@ -5,7 +5,7 @@ import { Avatar, Button, Modal } from "@heroui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Route } from "./+types/booking";
 import { useBookingStore, useBookingCartStore, useBookingUIStore, type BookingService } from "~/stores/booking";
-import { Clock, Calendar as CalendarIcon, Check, User, X, ChevronDown, CreditCard, Banknote, Plus, Building2, MapPin, Star, Crown, Gem } from "lucide-react";
+import { Clock, Calendar as CalendarIcon, Check, User, X, ChevronDown, Banknote, Building2, MapPin, Star, Crown, Gem } from "lucide-react";
 import { Calendar } from "~/components/Calendar";
 
 // Import service icons
@@ -44,19 +44,6 @@ const stylistLevelConfig: Record<StylistLevel, { label: string; color: string; i
   premium: { label: "Premium", color: "bg-purple-500", icon: Gem },
 };
 
-// Card type
-type PaymentCard = {
-  id: string;
-  cardNumber: string;
-  cardType: "uzcard" | "humo" | "visa" | "mastercard";
-  expiryDate: string;
-};
-
-// Mock saved cards
-const savedCards: PaymentCard[] = [
-  { id: "1", cardNumber: "8600 **** **** 1234", cardType: "uzcard", expiryDate: "12/26" },
-  { id: "2", cardNumber: "9860 **** **** 5678", cardType: "humo", expiryDate: "08/25" },
-];
 
 // Mock salon data (same as salon.tsx - in real app this would come from API/store)
 const salonsData: Record<
@@ -258,8 +245,6 @@ export default function Booking() {
   const [selectedStylistLevel, setSelectedStylistLevel] = useState<StylistLevel>("standart");
   const [swipeDirection, setSwipeDirection] = useState<1 | -1>(1);
   const [serviceLocation, setServiceLocation] = useState<"salon" | "home">("salon");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
-  const [selectedCard, setSelectedCard] = useState<PaymentCard | null>(null);
 
   // Initialize cart with the initial service on mount
   useEffect(() => {
@@ -864,125 +849,21 @@ export default function Booking() {
           </AnimatePresence>
         </div>
 
-        {/* Payment Method */}
+        {/* Payment Method - Cash only for now */}
         <div className="bg-white dark:bg-stone-900 mt-2">
-          {/* Header - Always visible, clickable to expand */}
-          <button
-            type="button"
-            onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
-            className="w-full px-4 pr-5 py-4 flex items-center justify-between"
-          >
+          <div className="w-full px-4 pr-5 py-4 flex items-center">
             <div className="flex items-center gap-3">
               <div className="size-12 shrink-0 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
-                {paymentMethod === "cash" ? (
-                  <Banknote size={22} className="text-primary" />
-                ) : (
-                  <CreditCard size={22} className="text-primary" />
-                )}
+                <Banknote size={22} className="text-primary" />
               </div>
               <div className="text-left">
                 <p className="text-sm text-stone-500 dark:text-stone-400">To'lov usuli</p>
                 <p className="font-semibold text-stone-900 dark:text-stone-100">
-                  {paymentMethod === "cash"
-                    ? "Naqd pul"
-                    : selectedCard
-                      ? selectedCard.cardNumber
-                      : "Karta"}
+                  Naqd pul
                 </p>
               </div>
             </div>
-            <motion.div
-              animate={{ rotate: isPaymentExpanded ? 180 : 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            >
-              <ChevronDown size={24} className="text-stone-400" />
-            </motion.div>
-          </button>
-
-          {/* Expandable content */}
-          <AnimatePresence initial={false}>
-            {isPaymentExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="overflow-hidden"
-              >
-                <div className="divide-y divide-stone-100 dark:divide-stone-800 border-t border-stone-100 dark:border-stone-800">
-                  {/* Cash option */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentMethod("cash");
-                      setSelectedCard(null);
-                      setIsPaymentExpanded(false);
-                    }}
-                    className="w-full px-4 py-3 flex items-center gap-3"
-                  >
-                    <div className="flex-1 min-w-0 text-left">
-                      <h4 className="font-medium text-stone-900 dark:text-stone-100">
-                        Naqd pul
-                      </h4>
-                      <p className="text-sm text-stone-500 dark:text-stone-400">
-                        Salonda to'lash
-                      </p>
-                    </div>
-                    <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === "cash"
-                      ? "border-primary bg-primary"
-                      : "border-stone-300 dark:border-stone-600"
-                      }`}>
-                      {paymentMethod === "cash" && <Check size={12} className="text-white" />}
-                    </div>
-                  </button>
-
-                  {/* Saved cards */}
-                  {savedCards.map((card) => (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedCard(card);
-                        setPaymentMethod("card");
-                        setIsPaymentExpanded(false);
-                      }}
-                      className="w-full px-4 py-3 flex items-center gap-3"
-                    >
-                      <div className="flex-1 min-w-0 text-left">
-                        <h4 className="font-medium text-stone-900 dark:text-stone-100">
-                          {card.cardNumber}
-                        </h4>
-                        <p className="text-sm text-stone-500 dark:text-stone-400">
-                          {card.cardType.toUpperCase()} · {card.expiryDate} · 5% chegirma
-                        </p>
-                      </div>
-                      <div className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${paymentMethod === "card" && selectedCard?.id === card.id
-                        ? "border-primary bg-primary"
-                        : "border-stone-300 dark:border-stone-600"
-                        }`}>
-                        {paymentMethod === "card" && selectedCard?.id === card.id && <Check size={12} className="text-white" />}
-                      </div>
-                    </button>
-                  ))}
-
-                  {/* Add new card button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Navigate to add card page or open add card modal
-                    }}
-                    className="w-full px-4 py-3 flex items-center gap-3"
-                  >
-                    <div className="flex-1 min-w-0 text-left">
-                      <h4 className="font-medium text-primary">
-                        + Yangi karta qo'shish
-                      </h4>
-                    </div>
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </div>
         </div>
 
         {/* Bottom Button */}

@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { retrieveLaunchParams, hapticFeedback } from "@tma.js/sdk-react";
+import { hapticFeedback, popup, useLaunchParams } from "@tma.js/sdk-react";
 import axios from "axios";
-import { Logo } from "~/components/icons/Logo";
-import { User, Phone, ArrowLeft } from "lucide-react";
 import { useOnboardingStore } from "~/stores/onboarding-store";
-import { useUserStore } from "~/stores/user-store";
+import { SafeAreaLayout } from "~/components/SafeAreaLayout";
 
 interface RegisterResponse {
   id: string;
@@ -13,32 +11,23 @@ interface RegisterResponse {
   last_name: string;
   phone_number: string;
   telegram_id: number;
-  is_verified: boolean;
 }
 
 interface RegisterError {
   error_code: string;
-  message: string;
+  error?: string;
+  message?: string;
 }
 
-const ERROR_MESSAGES: Record<string, string> = {
-  EMPTY_BODY: "Ma'lumotlar to'liq emas",
-  VALIDATION_ERROR: "Ma'lumotlar noto'g'ri kiritilgan",
-  USER_ALREADY_REGISTERED: "Bu raqam allaqachon ro'yxatdan o'tgan",
-  INVALID_OTP: "Kod noto'g'ri",
-  OTP_EXPIRED: "Kod muddati tugagan",
-  INTERNAL_ERROR: "Serverda xatolik yuz berdi",
-};
-
 async function registerUser(data: {
-  telegram_id: number;
   first_name: string;
   last_name: string;
   phone_number: string;
+  telegram_id: number;
 }): Promise<{ data?: RegisterResponse; error?: RegisterError }> {
   try {
     const response = await axios.post<RegisterResponse>(
-      "https://api.blyss.uz/users/register",
+      "https://api.blyss.uz/users/register/",
       data
     );
     return { data: response.data };
@@ -50,8 +39,17 @@ async function registerUser(data: {
   }
 }
 
-export function meta() {
-  return [{ title: "Ro'yxatdan o'tish - BLYSS" }];
+async function sendOtp(phone_number: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await axios.post("https://api.blyss.uz/otp/send", { phone_number });
+    return { success: true };
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      const errorData = err.response.data as { message?: string; error?: string };
+      return { success: false, error: errorData.message || errorData.error || "OTP yuborishda xatolik" };
+    }
+    throw err;
+  }
 }
 
 function triggerErrorHaptic() {
@@ -60,103 +58,75 @@ function triggerErrorHaptic() {
   }
 }
 
-function triggerHeavyHaptic() {
-  if (hapticFeedback.impactOccurred.isAvailable()) {
-    hapticFeedback.impactOccurred("heavy");
+function showErrorPopup(message: string) {
+  triggerErrorHaptic();
+  if (popup.show.isAvailable()) {
+    popup.show({
+      title: "Xatolik",
+      message,
+      buttons: [{ id: "ok", type: "ok" }],
+    });
   }
 }
 
-type FieldName = "first_name" | "last_name" | "phone_number" | null;
+export function meta() {
+  return [{ title: "Ro'yxatdan o'tish - BLYSS" }];
+}
 
-export default function OnboardingRegister() {
+export default function Register() {
   const navigate = useNavigate();
-  const { setData } = useOnboardingStore();
-  const setHasSeenIntroduction = useUserStore((state) => state.setHasSeenIntroduction);
+  const { data, setData } = useOnboardingStore();
+  const launchParams = useLaunchParams();
 
-  // Mark that user has seen introduction (persists forever)
-  useEffect(() => {
-    setHasSeenIntroduction();
-  }, [setHasSeenIntroduction]);
+  // Get user data from Telegram init data
+  const tgUser = launchParams.tgWebAppData?.user;
+  const telegramId = tgUser?.id;
+  const initialFirstName = typeof tgUser?.first_name === "string" ? tgUser.first_name : "";
+  const initialLastName = typeof tgUser?.last_name === "string" ? tgUser.last_name : "";
 
-  const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    phone_number: "",
-  });
+  // Phone number from store (saved when redirected from login with USER_NOT_FOUND)
+  const phoneNumber = data?.phone_number;
+
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
+  const [activeField, setActiveField] = useState<"firstName" | "lastName" | null>(null);
+  const [shake, setShake] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [shakeField, setShakeField] = useState<FieldName>(null);
 
-  const setErrorWithHaptic = (message: string, field?: FieldName) => {
-    setError(message);
+  const firstNameRef = useRef<HTMLInputElement>(null);
+  const lastNameRef = useRef<HTMLInputElement>(null);
+
+  // Focus first name input on mount (only if empty)
+  useEffect(() => {
+    if (!firstName) {
+      firstNameRef.current?.focus();
+    }
+  }, []);
+
+  const triggerShakeOnly = useCallback(() => {
     triggerErrorHaptic();
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  }, []);
 
-    if (field) {
-      setShakeField(field);
-      setTimeout(() => setShakeField(null), 500);
-    }
-  };
+  const handleSubmit = useCallback(async () => {
+    if (isLoading) return;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setError(null);
-  };
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-
-    // Remove any characters that are not + or digits
-    value = value.replace(/[^+\d]/g, "");
-
-    // Only allow + at the beginning
-    if (value.includes("+")) {
-      // Remove all + except if it's at position 0
-      const firstChar = value.charAt(0);
-      const rest = value.slice(1).replace(/\+/g, "");
-      value = (firstChar === "+" ? "+" : "") + rest;
-    }
-
-    // If user starts typing a digit without +, prepend +
-    if (value.length > 0 && value.charAt(0) !== "+") {
-      value = "+" + value;
-    }
-
-    // Limit to 13 characters (including +)
-    value = value.slice(0, 13);
-
-    setFormData((prev) => ({ ...prev, phone_number: value }));
-    setError(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    // Validation
-    if (!formData.first_name.trim()) {
-      setErrorWithHaptic("Ismingizni kiriting", "first_name");
-      return;
-    }
-    if (!formData.last_name.trim()) {
-      setErrorWithHaptic("Familiyangizni kiriting", "last_name");
-      return;
-    }
-    if (!formData.phone_number.trim()) {
-      setErrorWithHaptic("Telefon raqamingizni kiriting", "phone_number");
-      return;
-    }
-    if (formData.phone_number.length !== 13) {
-      setErrorWithHaptic("Telefon raqam to'liq emas", "phone_number");
+    if (!trimmedFirstName) {
+      triggerShakeOnly();
       return;
     }
 
-    // Get telegram_id from TMA launch params
-    const launchParams = retrieveLaunchParams();
-    const telegramId = launchParams.tgWebAppData?.user?.id;
-
-    if (!telegramId) {
-      setErrorWithHaptic("Telegram ma'lumotlari topilmadi");
+    // If no phone number in store, navigate to phone number step
+    if (!phoneNumber || !telegramId) {
+      setData({
+        first_name: trimmedFirstName,
+        last_name: trimmedLastName,
+      });
+      navigate("/login");
       return;
     }
 
@@ -164,180 +134,117 @@ export default function OnboardingRegister() {
 
     try {
       const result = await registerUser({
+        first_name: trimmedFirstName,
+        last_name: trimmedLastName,
+        phone_number: phoneNumber,
         telegram_id: telegramId,
-        first_name: formData.first_name.trim(),
-        last_name: formData.last_name.trim(),
-        phone_number: formData.phone_number.replace("+", ""),
       });
 
       if (result.error) {
-        const errorMessage = ERROR_MESSAGES[result.error.error_code] || result.error.message || "Ro'yxatdan o'tishda xatolik";
-        setError(errorMessage);
-        triggerHeavyHaptic();
+        showErrorPopup(result.error.message || result.error.error || "Ro'yxatdan o'tishda xatolik");
         setIsLoading(false);
         return;
       }
 
       if (result.data) {
-        // Store API response for OTP page
-        setData(result.data);
+        // Send OTP after successful registration
+        const otpResult = await sendOtp(result.data.phone_number);
+        if (!otpResult.success) {
+          showErrorPopup(otpResult.error || "OTP yuborishda xatolik");
+          setIsLoading(false);
+          return;
+        }
 
-        // Navigate to OTP page
+        setData({
+          id: result.data.id,
+          first_name: result.data.first_name,
+          last_name: result.data.last_name,
+          phone_number: result.data.phone_number,
+          telegram_id: result.data.telegram_id,
+        });
         navigate("/onboarding/confirm-phone-number");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Xatolik yuz berdi");
-      triggerHeavyHaptic();
+      showErrorPopup(err instanceof Error ? err.message : "Xatolik yuz berdi");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [firstName, lastName, phoneNumber, telegramId, isLoading, setData, navigate, triggerShakeOnly]);
 
-  const handleBack = () => {
-    navigate("/onboarding/introduction");
-  };
+  const isFormValid = firstName.trim().length > 0;
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header with back button */}
-      <div className="px-4 pt-12 pb-6">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="size-10 rounded-full bg-stone-100 flex items-center justify-center"
-        >
-          <ArrowLeft size={20} className="text-stone-600" />
-        </button>
-      </div>
-
-      {/* Logo and Title */}
-      <div className="px-6 mb-8">
-        <div className="text-start flex items-center">
-          <div className="inline-block">
-            <Logo width={120} height={50} />
-          </div>
-        </div>
-        <h1 className="text-2xl font-bold text-stone-900 mt-6">
-          Ro'yxatdan o'tish
-        </h1>
-        <p className="text-stone-500 mt-2">
-          Ma'lumotlaringizni kiriting
-        </p>
-      </div>
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="flex-1 px-6 flex flex-col">
-        <div className="space-y-4">
-          {/* First Name */}
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">
-              Ism
-            </label>
-            <div className={`relative ${shakeField === "first_name" ? "animate-shake" : ""}`}>
-              <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                <User size={20} className={shakeField === "first_name" ? "text-red-400" : "text-stone-400"} />
-              </div>
-              <input
-                type="text"
-                name="first_name"
-                value={formData.first_name}
-                onChange={handleChange}
-                placeholder="Ismingiz"
-                className={`w-full h-14 pl-12 pr-4 rounded-2xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all ${
-                  shakeField === "first_name" ? "bg-red-50 ring-2 ring-red-300" : "bg-stone-50"
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Last Name */}
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">
-              Familiya
-            </label>
-            <div className={`relative ${shakeField === "last_name" ? "animate-shake" : ""}`}>
-              <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                <User size={20} className={shakeField === "last_name" ? "text-red-400" : "text-stone-400"} />
-              </div>
-              <input
-                type="text"
-                name="last_name"
-                value={formData.last_name}
-                onChange={handleChange}
-                placeholder="Familiyangiz"
-                className={`w-full h-14 pl-12 pr-4 rounded-2xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all ${
-                  shakeField === "last_name" ? "bg-red-50 ring-2 ring-red-300" : "bg-stone-50"
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Phone Number */}
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">
-              Telefon raqam
-            </label>
-            <div className={`relative ${shakeField === "phone_number" ? "animate-shake" : ""}`}>
-              <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                <Phone size={20} className={shakeField === "phone_number" ? "text-red-400" : "text-stone-400"} />
-              </div>
-              <input
-                type="tel"
-                name="phone_number"
-                value={formData.phone_number}
-                onChange={handlePhoneChange}
-                placeholder="+998901234567"
-                maxLength={13}
-                className={`w-full h-14 pl-12 pr-4 rounded-2xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all ${
-                  shakeField === "phone_number" ? "bg-red-50 ring-2 ring-red-300" : "bg-stone-50"
-                }`}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
-        )}
-
-        {/* Spacer */}
-        <div className="flex-1 min-h-8" />
-
-        {/* Submit Button */}
-        <div className="pb-4">
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-primary text-white font-bold py-4 px-6 rounded-full text-base disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Yuklanmoqda...
-              </>
-            ) : (
-              "Davom etish"
-            )}
-          </button>
-        </div>
-
-        {/* Login Link */}
-        <div className="pb-8 text-center">
-          <p className="text-stone-500 text-sm">
-            Hisobingiz bormi?{" "}
-            <button
-              type="button"
-              onClick={() => navigate("/login")}
-              className="text-primary font-medium"
-            >
-              Kirish
-            </button>
+    <SafeAreaLayout
+      back
+      topColor="bg-white"
+      bottomColor="bg-white"
+      className="h-screen overflow-hidden"
+      mainButton={{
+        text: "Davom etish",
+        onClick: handleSubmit,
+        isEnabled: isFormValid && !isLoading,
+        isLoading,
+      }}
+    >
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Title and subtitle */}
+        <div className="px-4 mb-6 pt-4">
+          <h1 className="text-2xl font-semibold text-stone-900">
+            Ro'yxatdan o'tish
+          </h1>
+          <p className="text-stone-500 mt-2 text-sm">
+            Ismingiz va familiyangizni kiriting
           </p>
         </div>
-      </form>
-    </div>
+
+        {/* Form fields */}
+        <div className={`px-4 space-y-6 flex-1 ${shake ? "animate-shake" : ""}`}>
+          {/* First name input */}
+          <div className="relative">
+            <div className="absolute -top-2.5 left-3 px-1 z-10 bg-white">
+              <span className={`text-sm ${activeField === "firstName" || firstName ? "text-primary" : "text-stone-500"}`}>
+                Ism
+              </span>
+            </div>
+            <input
+              ref={firstNameRef}
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              onFocus={() => setActiveField("firstName")}
+              onBlur={() => setActiveField(null)}
+              placeholder="Ismingiz"
+              className={`w-full h-14 px-4 border rounded-lg outline-none transition-colors ${activeField === "firstName" || firstName
+                  ? "border-primary"
+                  : "border-stone-300"
+                } text-stone-900 placeholder:text-stone-400`}
+            />
+          </div>
+
+          {/* Last name input */}
+          <div className="relative">
+            <div className="absolute -top-2.5 left-3 px-1 z-10 bg-white">
+              <span className={`text-sm ${activeField === "lastName" || lastName ? "text-primary" : "text-stone-500"}`}>
+                Familiya
+              </span>
+            </div>
+            <input
+              ref={lastNameRef}
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              onFocus={() => setActiveField("lastName")}
+              onBlur={() => setActiveField(null)}
+              placeholder="Familiyangiz"
+              className={`w-full h-14 px-4 border rounded-lg outline-none transition-colors ${activeField === "lastName" || lastName
+                  ? "border-primary"
+                  : "border-stone-300"
+                } text-stone-900 placeholder:text-stone-400`}
+            />
+          </div>
+
+        </div>
+      </div>
+    </SafeAreaLayout>
   );
 }
