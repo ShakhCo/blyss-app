@@ -322,6 +322,57 @@ export default function SalonLayout() {
     enabled: !!id,
   });
 
+  // Determine active tab from current path (hook must be called before conditional returns)
+  const getActiveTab = (): TabType => {
+    const path = location.pathname;
+    if (path.endsWith("/gallery")) return "gallery";
+    if (path.endsWith("/reviews")) return "reviews";
+    if (path.endsWith("/about")) return "about";
+    return "services";
+  };
+
+  const activeTab = getActiveTab();
+
+  // Update swipe direction when tab changes (hook must be called before conditional returns)
+  useEffect(() => {
+    const currentIndex = getTabIndex(activeTab);
+    const previousIndex = getTabIndex(previousTabRef.current);
+    if (currentIndex !== previousIndex) {
+      setSwipeDirection(currentIndex > previousIndex ? 1 : -1);
+      previousTabRef.current = activeTab;
+    }
+  }, [activeTab]);
+
+  // Hide bottom nav (hook must be called before conditional returns)
+  useEffect(() => {
+    bottomNav.hide();
+    // Reset booking UI state when visiting salon page
+    bookingUI.reset();
+    return () => {
+      bottomNav.show();
+    };
+  }, []);
+
+  // Scroll-based opacity for Gallery Grid and Salon Info (hook must be called before conditional returns)
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      // Fade out info before showing hero name overlay
+      const fadeDistance = 48;
+      const opacity = Math.max(0, 1 - scrollY / fadeDistance);
+      setInfoOpacity(opacity);
+
+      // Show hero name when scrolled past 48px
+      setShowHeroName(scrollY >= 48);
+    };
+
+    // Calculate initial state on mount
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   // Transform API data to match the expected salon format
   const salon = businessData ? {
     id: businessData.business.id,
@@ -380,27 +431,6 @@ export default function SalonLayout() {
     );
   }
 
-  // Determine active tab from current path
-  const getActiveTab = (): TabType => {
-    const path = location.pathname;
-    if (path.endsWith("/gallery")) return "gallery";
-    if (path.endsWith("/reviews")) return "reviews";
-    if (path.endsWith("/about")) return "about";
-    return "services";
-  };
-
-  const activeTab = getActiveTab();
-
-  // Update swipe direction when tab changes
-  useEffect(() => {
-    const currentIndex = getTabIndex(activeTab);
-    const previousIndex = getTabIndex(previousTabRef.current);
-    if (currentIndex !== previousIndex) {
-      setSwipeDirection(currentIndex > previousIndex ? 1 : -1);
-      previousTabRef.current = activeTab;
-    }
-  }, [activeTab]);
-
   const handleTabClick = (tab: typeof tabs[0]) => {
     const currentIndex = getTabIndex(activeTab);
     const newIndex = getTabIndex(tab.id);
@@ -410,35 +440,6 @@ export default function SalonLayout() {
     const newPath = tab.path ? `${basePath}/${tab.path}` : basePath;
     navigate(newPath, { replace: true });
   };
-
-  useEffect(() => {
-    bottomNav.hide();
-    // Reset booking UI state when visiting salon page
-    bookingUI.reset();
-    return () => {
-      bottomNav.show();
-    };
-  }, []);
-
-  // Scroll-based opacity for Gallery Grid and Salon Info
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
-      // Fade out info before showing hero name overlay
-      const fadeDistance = 48;
-      const opacity = Math.max(0, 1 - scrollY / fadeDistance);
-      setInfoOpacity(opacity);
-
-      // Show hero name when scrolled past 48px
-      setShowHeroName(scrollY >= 48);
-    };
-
-    // Calculate initial state on mount
-    handleScroll();
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   return (
     <AppLayout back removeHeader>
