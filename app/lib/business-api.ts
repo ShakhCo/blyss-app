@@ -196,7 +196,7 @@ export interface BusinessDetailsResponse {
 export async function getBusinessDetails(
   businessId: string
 ): Promise<BusinessDetailsResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/public/businesses/${businessId}/details`
   );
 
