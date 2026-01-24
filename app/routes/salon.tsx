@@ -398,16 +398,46 @@ export default function SalonLayout() {
     reviews: [],
   } : salonsData["1"]; // Fallback to mock data
 
+  // Skeleton component for loading state
+  const SalonSkeleton = () => (
+    <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900">
+      {/* Hero Image Skeleton */}
+      <div className="h-48 sticky top-0 z-20 bg-stone-200 dark:bg-stone-800 animate-pulse" />
+
+      {/* Salon Info Skeleton */}
+      <div className="px-4 py-3 bg-white dark:bg-stone-900 relative z-10">
+        <div className="h-6 w-48 bg-stone-200 dark:bg-stone-800 rounded animate-pulse mb-2" />
+        <div className="flex items-center gap-3">
+          <div className="h-4 w-16 bg-stone-200 dark:bg-stone-800 rounded animate-pulse" />
+          <div className="h-4 w-24 bg-stone-200 dark:bg-stone-800 rounded animate-pulse" />
+        </div>
+      </div>
+
+      {/* Tabs Skeleton */}
+      <div className="sticky top-48 z-40 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
+        <div className="flex">
+          {tabs.map((tab) => (
+            <div key={tab.id} className="flex-1 py-3">
+              <div className="h-4 w-16 mx-auto bg-stone-200 dark:bg-stone-800 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Content Area Skeleton */}
+      <div className="p-4 space-y-3">
+        <div className="h-24 w-full bg-stone-200 dark:bg-stone-800 rounded-lg animate-pulse" />
+        <div className="h-24 w-full bg-stone-200 dark:bg-stone-800 rounded-lg animate-pulse" />
+        <div className="h-24 w-full bg-stone-200 dark:bg-stone-800 rounded-lg animate-pulse" />
+      </div>
+    </div>
+  );
+
   // Show loading state
   if (isLoading) {
     return (
       <AppLayout back removeHeader>
-        <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="size-8 border-3 border-stone-200 border-t-primary rounded-full animate-spin" />
-            <span className="text-stone-500 text-sm">Yuklanmoqda...</span>
-          </div>
-        </div>
+        <SalonSkeleton />
       </AppLayout>
     );
   }
