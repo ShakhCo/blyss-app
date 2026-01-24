@@ -262,7 +262,7 @@ export default function Chat() {
   return (
     <AppLayout back>
       {/* Chat Header - Fixed at top */}
-      <div className="max-w-lg mx-auto fixed top-30 sm:top-24 left-0 right-0 z-40 flex items-center gap-3 px-4 py-3 800 bg-white dark:bg-stone-900 rounded-t-3xl">
+      <div className="max-w-lg mx-auto fixed top-24 left-0 right-0 z-40 flex items-center gap-3 px-4 py-3 800 bg-white dark:bg-stone-900 rounded-t-3xl">
         <div className="relative shrink-0">
           <img
             src={conversation.avatar}

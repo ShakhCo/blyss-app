@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { logout } from "~/lib/api-client";
 import { useUserStore } from "~/stores/user-store";
 import { useLocationStore } from "~/stores/location";
 import { useBookingStore, useBookingCartStore } from "~/stores/booking";
@@ -12,19 +13,33 @@ export function meta() {
 export default function Logout() {
   const navigate = useNavigate();
   const clearUser = useUserStore((state) => state.clearUser);
+  const access_token = useUserStore((state) => state.access_token);
 
   useEffect(() => {
-    // Clear all stores
-    clearUser();
-    useLocationStore.persist.clearStorage();
-    useBookingStore.persist.clearStorage();
-    useBookingCartStore.persist.clearStorage();
+    const performLogout = async () => {
+      // Call logout endpoint if we have a token
+      if (access_token) {
+        try {
+          await logout();
+        } catch {
+          // Ignore logout errors, proceed with local cleanup
+        }
+      }
 
-    // Redirect to login after a short delay
-    setTimeout(() => {
-      navigate("/login", { replace: true });
-    }, 500);
-  }, [clearUser, navigate]);
+      // Clear all stores
+      clearUser();
+      useLocationStore.persist.clearStorage();
+      useBookingStore.persist.clearStorage();
+      useBookingCartStore.persist.clearStorage();
+
+      // Redirect to introduction after a short delay
+      setTimeout(() => {
+        navigate("/onboarding/introduction", { replace: true });
+      }, 500);
+    };
+
+    performLogout();
+  }, [access_token, clearUser, navigate]);
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center">

@@ -8,11 +8,22 @@ import {
   ScrollRestoration,
   useNavigation,
 } from "react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Logo } from "./components/icons/Logo";
 import { AuthGuard } from "./components/auth-guard";
+
+// Create QueryClient instance
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
+    },
+  },
+});
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -64,9 +75,9 @@ export default function App() {
 
   useEffect(() => {
     // Initialize Eruda console for debugging
-    // import("eruda").then((eruda) => {
-    //   eruda.default.init();
-    // });
+    import("eruda").then((eruda) => {
+      eruda.default.init();
+    });
 
     // Initialize TMA SDK only on client side
     import("@tma.js/sdk-react").then(async ({ init, backButton, retrieveLaunchParams, viewport, swipeBehavior }) => {
@@ -131,9 +142,16 @@ export default function App() {
       //     <span className="text-white/60 text-sm">Loading...</span>
       //   </div>
       // </div>
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-white flex flex-col items-center justify-between py-10">
+        <div></div>
         <Logo width={180} height={80} />
-        <div className="size-8 mt-10 border-3 border-stone-900/20 border-t-primary rounded-full animate-spin" />
+        <div className="text-stone-600 text-sm">
+          <div className="flex items-center justify-center space-x-2">
+            <div className="bg-primary/50 h-2.5 w-2.5 animate-bounce rounded-full [animation-delay:-0.3s]"></div>
+            <div className="bg-primary/50 h-2.5 w-2.5 animate-bounce rounded-full [animation-delay:-0.13s]"></div>
+            <div className="bg-primary/50 h-2.5 w-2.5 animate-bounce rounded-full"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -163,9 +181,11 @@ function AppContent({ tmaReady, user }: { tmaReady: boolean; user: TmaUser }) {
         />
       </div>
 
-      <AuthGuard>
-        <Outlet context={{ tmaReady, user } as TmaContext} />
-      </AuthGuard>
+      <QueryClientProvider client={queryClient}>
+        <AuthGuard>
+          <Outlet context={{ tmaReady, user } as TmaContext} />
+        </AuthGuard>
+      </QueryClientProvider>
     </>
   );
 }

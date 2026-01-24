@@ -74,7 +74,7 @@ export default function OnboardingIntroduction() {
   const isLastStep = currentStep === onboardingSteps.length - 1;
 
   const handleComplete = () => {
-    navigate("/onboarding/register");
+    navigate("/login");
   };
 
   const handleNext = () => {

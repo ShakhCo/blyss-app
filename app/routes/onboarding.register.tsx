@@ -1,60 +1,20 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { hapticFeedback, popup, useLaunchParams } from "@tma.js/sdk-react";
-import axios from "axios";
+import { registerUser, login } from "~/lib/api-client";
 import { useOnboardingStore } from "~/stores/onboarding-store";
+import { useUserStore } from "~/stores/user-store";
 import { SafeAreaLayout } from "~/components/SafeAreaLayout";
-
-interface RegisterResponse {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone_number: string;
-  telegram_id: number;
-}
-
-interface RegisterError {
-  error_code: string;
-  error?: string;
-  message?: string;
-}
-
-async function registerUser(data: {
-  first_name: string;
-  last_name: string;
-  phone_number: string;
-  telegram_id: number;
-}): Promise<{ data?: RegisterResponse; error?: RegisterError }> {
-  try {
-    const response = await axios.post<RegisterResponse>(
-      "https://api.blyss.uz/users/register/",
-      data
-    );
-    return { data: response.data };
-  } catch (err) {
-    if (axios.isAxiosError(err) && err.response) {
-      return { error: err.response.data as RegisterError };
-    }
-    throw err;
-  }
-}
-
-async function sendOtp(phone_number: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    await axios.post("https://api.blyss.uz/otp/send", { phone_number });
-    return { success: true };
-  } catch (err) {
-    if (axios.isAxiosError(err) && err.response) {
-      const errorData = err.response.data as { message?: string; error?: string };
-      return { success: false, error: errorData.message || errorData.error || "OTP yuborishda xatolik" };
-    }
-    throw err;
-  }
-}
 
 function triggerErrorHaptic() {
   if (hapticFeedback.notificationOccurred.isAvailable()) {
     hapticFeedback.notificationOccurred("error");
+  }
+}
+
+function triggerSuccessHaptic() {
+  if (hapticFeedback.notificationOccurred.isAvailable()) {
+    hapticFeedback.notificationOccurred("success");
   }
 }
 
@@ -75,8 +35,13 @@ export function meta() {
 
 export default function Register() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data, setData } = useOnboardingStore();
+  const { setUser, setTokens } = useUserStore();
   const launchParams = useLaunchParams();
+
+  // Get otp_id from navigation state (passed from confirm-phone-number)
+  const otp_id = location.state?.otp_id as string | undefined;
 
   // Get user data from Telegram init data
   const tgUser = launchParams.tgWebAppData?.user;
@@ -84,7 +49,7 @@ export default function Register() {
   const initialFirstName = typeof tgUser?.first_name === "string" ? tgUser.first_name : "";
   const initialLastName = typeof tgUser?.last_name === "string" ? tgUser.last_name : "";
 
-  // Phone number from store (saved when redirected from login with USER_NOT_FOUND)
+  // Phone number from store
   const phoneNumber = data?.phone_number;
 
   const [firstName, setFirstName] = useState(initialFirstName);
@@ -95,6 +60,13 @@ export default function Register() {
 
   const firstNameRef = useRef<HTMLInputElement>(null);
   const lastNameRef = useRef<HTMLInputElement>(null);
+
+  // Redirect to login if no phone number or otp_id
+  useEffect(() => {
+    if (!phoneNumber || !otp_id) {
+      navigate("/login", { replace: true });
+    }
+  }, [phoneNumber, otp_id, navigate]);
 
   // Focus first name input on mount (only if empty)
   useEffect(() => {
@@ -115,61 +87,65 @@ export default function Register() {
     const trimmedFirstName = firstName.trim();
     const trimmedLastName = lastName.trim();
 
-    if (!trimmedFirstName) {
+    if (!trimmedFirstName || !phoneNumber || !otp_id) {
       triggerShakeOnly();
-      return;
-    }
-
-    // If no phone number in store, navigate to phone number step
-    if (!phoneNumber || !telegramId) {
-      setData({
-        first_name: trimmedFirstName,
-        last_name: trimmedLastName,
-      });
-      navigate("/login");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await registerUser({
+      // Step 1: Register user with otp_id
+      const registerResult = await registerUser({
+        otp_id,
+        user_type: "user",
         first_name: trimmedFirstName,
         last_name: trimmedLastName,
-        phone_number: phoneNumber,
-        telegram_id: telegramId,
+        telegram_id: telegramId ?? null,
       });
 
-      if (result.error) {
-        showErrorPopup(result.error.message || result.error.error || "Ro'yxatdan o'tishda xatolik");
+      if (registerResult.error) {
+        showErrorPopup(registerResult.error.error || "Ro'yxatdan o'tishda xatolik");
         setIsLoading(false);
         return;
       }
 
-      if (result.data) {
-        // Send OTP after successful registration
-        const otpResult = await sendOtp(result.data.phone_number);
-        if (!otpResult.success) {
-          showErrorPopup(otpResult.error || "OTP yuborishda xatolik");
-          setIsLoading(false);
-          return;
-        }
+      // Step 2: Login to get tokens
+      const loginResult = await login({
+        otp_id,
+        phone_number: phoneNumber,
+        user_type: "user",
+      });
 
+      if (loginResult.error) {
+        showErrorPopup(loginResult.error.error || "Login qilishda xatolik");
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 3: Save user and tokens, navigate to home
+      if (loginResult.data) {
+        const { user, access_token, refresh_token, expires_at } = loginResult.data;
+
+        setUser(user);
+        setTokens(access_token, refresh_token, expires_at);
+        triggerSuccessHaptic();
+
+        // Clear onboarding data
         setData({
-          id: result.data.id,
-          first_name: result.data.first_name,
-          last_name: result.data.last_name,
-          phone_number: result.data.phone_number,
-          telegram_id: result.data.telegram_id,
+          first_name: trimmedFirstName,
+          last_name: trimmedLastName,
+          phone_number: phoneNumber,
         });
-        navigate("/onboarding/confirm-phone-number");
+
+        navigate("/", { replace: true });
       }
     } catch (err) {
       showErrorPopup(err instanceof Error ? err.message : "Xatolik yuz berdi");
     } finally {
       setIsLoading(false);
     }
-  }, [firstName, lastName, phoneNumber, telegramId, isLoading, setData, navigate, triggerShakeOnly]);
+  }, [firstName, lastName, phoneNumber, otp_id, telegramId, isLoading, setData, navigate, triggerShakeOnly, setUser, setTokens]);
 
   const isFormValid = firstName.trim().length > 0;
 
@@ -192,20 +168,15 @@ export default function Register() {
           <h1 className="text-2xl font-semibold text-stone-900">
             Ro'yxatdan o'tish
           </h1>
-          <p className="text-stone-500 mt-2 text-sm">
+          <p className="text-stone-500 mt-2 text-base">
             Ismingiz va familiyangizni kiriting
           </p>
         </div>
 
         {/* Form fields */}
-        <div className={`px-4 space-y-6 flex-1 ${shake ? "animate-shake" : ""}`}>
+        <div className={`px-4 space-y-4 flex-1 ${shake ? "animate-shake" : ""}`}>
           {/* First name input */}
           <div className="relative">
-            <div className="absolute -top-2.5 left-3 px-1 z-10 bg-white">
-              <span className={`text-sm ${activeField === "firstName" || firstName ? "text-primary" : "text-stone-500"}`}>
-                Ism
-              </span>
-            </div>
             <input
               ref={firstNameRef}
               type="text"
@@ -215,19 +186,14 @@ export default function Register() {
               onBlur={() => setActiveField(null)}
               placeholder="Ismingiz"
               className={`w-full h-14 px-4 border rounded-lg outline-none transition-colors ${activeField === "firstName" || firstName
-                  ? "border-primary"
-                  : "border-stone-300"
+                ? "border-primary"
+                : "border-stone-300"
                 } text-stone-900 placeholder:text-stone-400`}
             />
           </div>
 
           {/* Last name input */}
           <div className="relative">
-            <div className="absolute -top-2.5 left-3 px-1 z-10 bg-white">
-              <span className={`text-sm ${activeField === "lastName" || lastName ? "text-primary" : "text-stone-500"}`}>
-                Familiya
-              </span>
-            </div>
             <input
               ref={lastNameRef}
               type="text"
@@ -237,8 +203,8 @@ export default function Register() {
               onBlur={() => setActiveField(null)}
               placeholder="Familiyangiz"
               className={`w-full h-14 px-4 border rounded-lg outline-none transition-colors ${activeField === "lastName" || lastName
-                  ? "border-primary"
-                  : "border-stone-300"
+                ? "border-primary"
+                : "border-stone-300"
                 } text-stone-900 placeholder:text-stone-400`}
             />
           </div>

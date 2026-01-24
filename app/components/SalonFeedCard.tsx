@@ -11,6 +11,7 @@ export interface SalonFeedData {
   comments?: number;
   rating?: number;
   distance?: string;
+  services?: string[];
   gallery?: string[];
   reviews?: Review[];
   stylists?: Stylist[];
@@ -64,14 +65,17 @@ export function SalonFeedCard({
         </div>
       </button>
 
-      <div className="grid grid-cols-12 gap-2 px-2 pt-2 pb-3">
+      <div className="grid grid-cols-12 gap-2 px-2 pt-2">
         <div className="col-span-8">
           <div className="flex flex-1 flex-col justify-center gap-1 px-2 py-1 rounded-xl">
             <h3 className="text-lg font-semibold line-clamp-1 flex items-center dark:text-stone-100">
               <span>{salon.name}</span>
-              <ChevronRight size={16} />
             </h3>
-            <p className="text-sm text-gray-500 dark:text-stone-400 line-clamp-1">{salon.address}</p>
+            {salon.services && salon.services.length > 0 && (
+              <p className="text-base text-stone-500 dark:text-stone-500 line-clamp-1">
+                {salon.services.join(" . ")}
+              </p>
+            )}
           </div>
         </div>
         <div className="col-span-4 py-1">
@@ -81,7 +85,7 @@ export function SalonFeedCard({
         </div>
       </div>
 
-      <div className="pb-8">
+      <div className="pb-8 mt-3">
         <div className="px-3 flex items-center gap-2 w-full h-8">
           <button
             type="button"

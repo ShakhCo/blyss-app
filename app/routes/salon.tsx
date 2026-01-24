@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation, Outlet } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "~/components/AppLayout";
 import type { Route } from "./+types/salon";
 import { bottomNav } from "~/stores/bottomNav";
 import { bookingUI } from "~/stores/booking";
 import { Star, Clock } from "lucide-react";
+import { getBusinessDetails, type BusinessDetailsResponse } from "~/lib/business-api";
 
 // Mock salon data - shared across all salon routes
 export const salonsData: Record<string, {
@@ -313,7 +315,70 @@ export default function SalonLayout() {
   const [infoOpacity, setInfoOpacity] = useState(1);
   const [showHeroName, setShowHeroName] = useState(false);
 
-  const salon = salonsData[id || ""] || salonsData["1"];
+  // Fetch business details using React Query
+  const { data: businessData, isLoading, error } = useQuery({
+    queryKey: ["business", id],
+    queryFn: () => getBusinessDetails(id || ""),
+    enabled: !!id,
+  });
+
+  // Transform API data to match the expected salon format
+  const salon = businessData ? {
+    id: businessData.business.id,
+    name: businessData.business.name,
+    image: "https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile",
+    gallery: [],
+    rating: 4.5,
+    reviewCount: "1.2k",
+    address: "Toshkent",
+    phone: businessData.business.business_phone_number,
+    workingHours: "09:00 - 21:00",
+    weeklyHours: [],
+    description: "",
+    services: businessData.services.map(s => ({
+      id: s.id,
+      name: s.name,
+      duration: `${s.duration_minutes} daqiqa`,
+      price: s.price.toLocaleString(),
+      category: "General",
+    })),
+    amenities: [],
+    stylists: [],
+    reviews: [],
+  } : salonsData["1"]; // Fallback to mock data
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <AppLayout back removeHeader>
+        <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="size-8 border-3 border-stone-200 border-t-primary rounded-full animate-spin" />
+            <span className="text-stone-500 text-sm">Yuklanmoqda...</span>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <AppLayout back removeHeader>
+        <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900 flex items-center justify-center p-4">
+          <div className="text-center">
+            <p className="text-red-500 mb-2">Xatolik yuz berdi</p>
+            <button
+              onClick={() => navigate("/")}
+              className="text-primary text-sm font-medium"
+            >
+              Bosh sahifaga qaytish
+            </button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   // Determine active tab from current path
   const getActiveTab = (): TabType => {

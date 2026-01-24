@@ -1,6 +1,33 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useSignal, viewport, mainButton, backButton } from "@tma.js/sdk-react";
+import { Logo } from "./icons/Logo";
+
+// Global store for safe area values - persists across navigation
+const globalSafeArea = { top: 0, bottom: 0, initialized: false };
+const globalContentSafeArea = { top: 0, bottom: 0, initialized: false };
+
+// Try to restore from localStorage on module load (client-side only)
+if (typeof window !== "undefined") {
+  try {
+    const stored = localStorage.getItem("tma-safe-area");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      globalSafeArea.top = parsed.top ?? 0;
+      globalSafeArea.bottom = parsed.bottom ?? 0;
+      globalSafeArea.initialized = true;
+    }
+    const storedContent = localStorage.getItem("tma-content-safe-area");
+    if (storedContent) {
+      const parsed = JSON.parse(storedContent);
+      globalContentSafeArea.top = parsed.top ?? 0;
+      globalContentSafeArea.bottom = parsed.bottom ?? 0;
+      globalContentSafeArea.initialized = true;
+    }
+  } catch {
+    // Ignore errors
+  }
+}
 
 interface MainButtonConfig {
   /** Button text */
@@ -27,6 +54,8 @@ interface SafeAreaLayoutProps {
   showTop?: boolean;
   /** Whether to show bottom overlay (default: true) */
   showBottom?: boolean;
+  showLogo?: boolean;
+  removeContnetPadding?: boolean;
   /** Additional className for the container */
   className?: string;
   /** Main button configuration - if provided, shows the Telegram Main Button */
@@ -44,34 +73,82 @@ export function SafeAreaLayout({
   showTop = true,
   showBottom = true,
   className = "",
+  removeContnetPadding = false,
+  showLogo = false,
   mainButton: mainButtonConfig,
   back = false,
   onBack,
 }: SafeAreaLayoutProps) {
   const navigate = useNavigate();
-  // Capture initial safe area values on mount to prevent shrinking on scroll
-  const initialSafeAreaRef = useRef<{ top: number; bottom: number } | null>(null);
   const safeAreaInsets = useSignal(viewport.safeAreaInsets);
   const contentSafeAreaInsets = useSignal(viewport.contentSafeAreaInsets);
 
+  // Track ready state
+  const [isReady, setIsReady] = useState(globalSafeArea.initialized);
+
+  // Track stable values in state (not ref) to trigger re-renders
+  const [stableSafeArea, setStableSafeArea] = useState(() =>
+    globalSafeArea.initialized
+      ? { top: globalSafeArea.top, bottom: globalSafeArea.bottom }
+      : null
+  );
+  const [stableContentSafeArea, setStableContentSafeArea] = useState(() =>
+    globalContentSafeArea.initialized
+      ? { top: globalContentSafeArea.top, bottom: globalContentSafeArea.bottom }
+      : null
+  );
+
   useEffect(() => {
-    if (initialSafeAreaRef.current === null && safeAreaInsets) {
-      initialSafeAreaRef.current = {
+    // Store safe area values when they become available
+    if (safeAreaInsets && (safeAreaInsets.top !== undefined || safeAreaInsets.bottom !== undefined)) {
+      const values = {
         top: safeAreaInsets.top ?? 0,
         bottom: safeAreaInsets.bottom ?? 0,
       };
+
+      // Update global store and localStorage
+      globalSafeArea.top = values.top;
+      globalSafeArea.bottom = values.bottom;
+      globalSafeArea.initialized = true;
+      try {
+        localStorage.setItem("tma-safe-area", JSON.stringify(values));
+      } catch {
+        // Ignore errors
+      }
+
+      // Only set stable values once (to prevent changes on scroll)
+      if (!stableSafeArea) {
+        setStableSafeArea(values);
+      }
+      setIsReady(true);
     }
-  }, [safeAreaInsets]);
+  }, [safeAreaInsets, stableSafeArea]);
 
-  const safeAreaValue = {
-    top: initialSafeAreaRef.current?.top ?? safeAreaInsets?.top ?? 0,
-    bottom: initialSafeAreaRef.current?.bottom ?? safeAreaInsets?.bottom ?? 0,
-  };
+  useEffect(() => {
+    if (contentSafeAreaInsets && (contentSafeAreaInsets.top !== undefined || contentSafeAreaInsets.bottom !== undefined)) {
+      const values = {
+        top: contentSafeAreaInsets.top ?? 0,
+        bottom: contentSafeAreaInsets.bottom ?? 0,
+      };
 
-  const contentSafeAreaValue = {
-    top: contentSafeAreaInsets?.top ?? 0,
-    bottom: contentSafeAreaInsets?.bottom ?? 0,
-  };
+      globalContentSafeArea.top = values.top;
+      globalContentSafeArea.bottom = values.bottom;
+      globalContentSafeArea.initialized = true;
+      try {
+        localStorage.setItem("tma-content-safe-area", JSON.stringify(values));
+      } catch {
+        // Ignore errors
+      }
+
+      if (!stableContentSafeArea) {
+        setStableContentSafeArea(values);
+      }
+    }
+  }, [contentSafeAreaInsets, stableContentSafeArea]);
+
+  // Use stable state values or global fallback
+  const safeAreaValue = stableSafeArea ?? { top: globalSafeArea.top, bottom: globalSafeArea.bottom };
+  const contentSafeAreaValue = stableContentSafeArea ?? { top: globalContentSafeArea.top, bottom: globalContentSafeArea.bottom };
 
   // Handle Telegram back button
   useEffect(() => {
@@ -137,12 +214,17 @@ export function SafeAreaLayout({
     }
   }, [mainButtonConfig?.isLoading]);
 
+  // Don't render children until safe area values are ready
+  if (!isReady) {
+    return null;
+  }
+
   return (
-    <div className={`relative flex flex-col ${className}`}>
+    <div className={`relative flex flex-col h-screen ${className}`}>
       {/* Top safe area overlay */}
       {showTop && safeAreaValue.top > 0 && (
         <div
-          className={`${topColor} fixed top-0 left-0 w-full z-50`}
+          className={`${topColor} fixed top-0 left-0 w-full z-50 backdrop-blur-sm`}
           style={{ height: safeAreaValue.top }}
         />
       )}
@@ -150,19 +232,24 @@ export function SafeAreaLayout({
       {/* Bottom safe area overlay */}
       {showBottom && safeAreaValue.bottom > 0 && (
         <div
-          className={`${bottomColor} fixed bottom-0 left-0 w-full z-50`}
+          className={`${bottomColor} fixed bottom-0 left-0 w-full z-5000`}
           style={{ height: safeAreaValue.bottom }}
         />
       )}
 
       {/* Main content with safe area padding */}
       <div
-        className="bg-background flex-1 flex flex-col overflow-hidden"
+        className="bg-background flex-1 flex flex-col overflow-y-auto relative"
         style={{
-          paddingTop: safeAreaValue.top + contentSafeAreaValue.top,
+          paddingTop: safeAreaValue.top + (removeContnetPadding ? 0 : contentSafeAreaValue.top),
           paddingBottom: safeAreaValue.bottom,
         }}
       >
+        {showLogo && (
+          <div className="sticky top-0 z-40 bg-background py-3">
+            <Logo />
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -171,20 +258,35 @@ export function SafeAreaLayout({
 
 /** Hook to get stable safe area values that don't change on scroll */
 export function useSafeArea() {
-  const initialSafeAreaRef = useRef<{ top: number; bottom: number } | null>(null);
   const safeAreaInsets = useSignal(viewport.safeAreaInsets);
 
+  const [stableSafeArea, setStableSafeArea] = useState(() =>
+    globalSafeArea.initialized
+      ? { top: globalSafeArea.top, bottom: globalSafeArea.bottom }
+      : null
+  );
+
   useEffect(() => {
-    if (initialSafeAreaRef.current === null && safeAreaInsets) {
-      initialSafeAreaRef.current = {
+    if (safeAreaInsets && (safeAreaInsets.top !== undefined || safeAreaInsets.bottom !== undefined)) {
+      const values = {
         top: safeAreaInsets.top ?? 0,
         bottom: safeAreaInsets.bottom ?? 0,
       };
-    }
-  }, [safeAreaInsets]);
 
-  return {
-    top: initialSafeAreaRef.current?.top ?? safeAreaInsets?.top ?? 0,
-    bottom: initialSafeAreaRef.current?.bottom ?? safeAreaInsets?.bottom ?? 0,
-  };
+      globalSafeArea.top = values.top;
+      globalSafeArea.bottom = values.bottom;
+      globalSafeArea.initialized = true;
+      try {
+        localStorage.setItem("tma-safe-area", JSON.stringify(values));
+      } catch {
+        // Ignore errors
+      }
+
+      if (!stableSafeArea) {
+        setStableSafeArea(values);
+      }
+    }
+  }, [safeAreaInsets, stableSafeArea]);
+
+  return stableSafeArea ?? { top: globalSafeArea.top, bottom: globalSafeArea.bottom };
 }

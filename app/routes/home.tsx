@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import type { Route } from "./+types/home";
 import { AppLayout } from "~/components/AppLayout";
 import {
@@ -15,6 +16,8 @@ import { useScrollProgress } from "~/hooks/useScrollProgress";
 import { bottomNav } from "~/stores/bottomNav";
 import { HomeSkeleton } from "~/components/skeletons";
 import { useOnboardingStore } from "~/stores/onboarding-store";
+import { useLocationStore } from "~/stores/location";
+import { getNearestBusinesses, getDistance, type Business } from "~/lib/business-api";
 import { MapPin, Star } from "lucide-react";
 import { ReviewsModal } from "~/components/ReviewsModal";
 import { salonsData } from "./salon";
@@ -39,83 +42,132 @@ const allServices = [
   { id: "7", name: "Massaj", icon: massageIcon },
 ];
 
-const nearestSalons: (FeaturedSalon & { lat: number; lng: number })[] = [
-  {
-    id: "1",
-    name: "Shark Barbershop",
-    image:
-      "https://yonolighting.com/wp-content/uploads/2024/09/Top-10-Best-Lighting-Ideas-for-Your-Barber-Shop.webp",
-    services: ["Soch", "Soqol", "2+"],
-    address: "Navoiy ko'chasi, 25",
-    rating: 4.8,
-    reviewCount: "3.1k",
-    isFavorite: true,
-    lat: 41.311081,
-    lng: 69.240562,
-  },
-  {
-    id: "2",
-    name: "Boss Barbershop",
-    image:
-      "https://img.freepik.com/premium-photo/young-man-with-trendy-haircut-barber-shop-barber-does-hairstyle-beard-trim_179755-8600.jpg",
-    services: ["Soch", "Soqol", "Teri"],
-    address: "Amir Temur shoh ko'chasi, 108",
-    rating: 4.7,
-    reviewCount: "2.7k",
-    isFavorite: false,
-    lat: 41.314472,
-    lng: 69.248123,
-  },
-  {
-    id: "3",
-    name: "Malika Go'zallik Saloni",
-    image:
-      "https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile",
-    services: ["Pardoz", "Soch", "Spa"],
-    address: "Bobur ko'chasi, 42",
-    rating: 4.9,
-    reviewCount: "1.8k",
-    isFavorite: false,
-    lat: 41.308234,
-    lng: 69.253891,
-  },
-];
-
-const feedSalons: SalonFeedData[] = nearestSalons.map((salon) => {
-  const salonDetail = salonsData[salon.id];
-  return {
-    id: salon.id,
-    name: salon.name,
-    image: salon.image,
-    address: salon.address,
-    likes: 75,
-    rating: salon.rating,
-    comments: salonDetail?.reviews.length ?? 0,
-    distance: "2.4km sizdan",
-    gallery: salonDetail?.gallery,
-    reviews: salonDetail?.reviews,
-    stylists: salonDetail?.stylists,
-  };
-});
-
 export function meta({ }: Route.MetaArgs) {
   return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
+    { title: "BLYSS - Go'zallik Salonlari" },
+    { name: "description", content: "Eng yaqin go'zallik salonlarini toping" },
   ];
 }
+
+// Default Tashkent coordinates if location not available
+const DEFAULT_LOCATION = { lat: 41.2995, lng: 69.2401 };
 
 export default function Home() {
   const navigate = useNavigate();
   const { ref: servicesRef, scrollProgress } = useScrollProgress();
   const [reviewsSalon, setReviewsSalon] = useState<SalonFeedData | null>(null);
   const clearOnboardingData = useOnboardingStore((state) => state.clearData);
+  const { lat, lon } = useLocationStore();
+
+  // Fetch nearest businesses using React Query
+  const { data: businessesResponse, isLoading: isLoadingBusinesses, error: businessError, refetch } = useQuery({
+    queryKey: ["nearestBusinesses", lat, lon],
+    queryFn: async () => {
+      const result = await getNearestBusinesses({
+        lat: lat ?? DEFAULT_LOCATION.lat,
+        lng: lon ?? DEFAULT_LOCATION.lng,
+        radius: 100,
+        page: 1,
+        page_size: 20,
+      });
+
+      const userLat = lat ?? DEFAULT_LOCATION.lat;
+      const userLng = lon ?? DEFAULT_LOCATION.lng;
+
+      // Fetch accurate distances for each business
+      const businessWithDistances = await Promise.all(
+        result.data.map(async (business) => {
+          try {
+            const distanceResult = await getDistance({
+              userLocation: { lat: userLat, lng: userLng },
+              businessLocation: { lat: business.location.lat, lng: business.location.lng },
+            });
+            // Convert distance to km if API returns meters
+            const distanceInKm = distanceResult.metric === 'm'
+              ? distanceResult.distance / 1000
+              : distanceResult.distance;
+            return { ...business, distance: distanceInKm };
+          } catch {
+            // If distance fetch fails, keep the original distance
+            return business;
+          }
+        })
+      );
+
+      return businessWithDistances;
+    },
+  });
+
+  const businesses = businessesResponse ?? [];
 
   // Show bottom nav and clear onboarding data when home page mounts
   useEffect(() => {
     bottomNav.show();
     clearOnboardingData();
   }, []);
+
+  // Map businesses to FeaturedSalon format
+  const nearestSalons = useMemo(() => {
+    return businesses.slice(0, 5).map((business) => {
+      // Get active services and format them
+      const activeServices = business.services.filter((s) => s.is_active);
+      const serviceNames = activeServices.slice(0, 2).map((s) => s.name);
+      const remainingCount = activeServices.length - 2;
+
+      // Format distance: show meters if < 1km, otherwise km
+      const distanceValue = Math.round(business.distance * 10) / 10;
+      const distanceText = distanceValue < 1
+        ? `${Math.round(business.distance * 1000)}m`
+        : `${distanceValue}km`;
+
+      return {
+        id: business.id,
+        name: business.business_name,
+        image: `https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile`,
+        services: remainingCount > 0
+          ? [...serviceNames, `+${remainingCount}`]
+          : serviceNames,
+        address: `${distanceText} sizdan`,
+        rating: 4.5,
+        reviewCount: "1.2k",
+        isFavorite: false,
+      } satisfies FeaturedSalon;
+    });
+  }, [businesses]);
+
+  // Map businesses to SalonFeedData format
+  const feedSalons = useMemo(() => {
+    return businesses.map((business) => {
+      const salonDetail = salonsData[business.id];
+      // Get active services and format them
+      const activeServices = business.services.filter((s) => s.is_active);
+      const serviceNames = activeServices.slice(0, 3).map((s) => s.name);
+      const remainingCount = activeServices.length - 3;
+
+      // Format distance: show meters if < 1km, otherwise km
+      const distanceValue = Math.round(business.distance * 10) / 10;
+      const distanceText = distanceValue < 1
+        ? `${Math.round(business.distance * 1000)}m`
+        : `${distanceValue}km`;
+
+      return {
+        id: business.id,
+        name: business.business_name,
+        image: `https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile`,
+        address: `${distanceText} sizdan`,
+        services: remainingCount > 0
+          ? [...serviceNames, `+${remainingCount}`]
+          : serviceNames,
+        likes: 75,
+        rating: 4.5,
+        comments: salonDetail?.reviews.length ?? 12,
+        distance: `${distanceText} sizdan`,
+        gallery: salonDetail?.gallery,
+        reviews: salonDetail?.reviews,
+        stylists: salonDetail?.stylists,
+      } satisfies SalonFeedData;
+    });
+  }, [businesses]);
 
   // Show sticky header when scrolled past 50%
   const showStickyHeader = scrollProgress > 0.5;
@@ -191,31 +243,80 @@ export default function Home() {
             className="px-4 mb-4"
           />
 
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide pl-4 pr-3 pb-4 overflow-hidden">
-            {nearestSalons.map((salon) => (
-              <FeaturedSalonCard
-                key={salon.id}
-                salon={salon}
-                onClick={() => handleSalonClick(salon)}
-                onFavoriteToggle={() => handleFavoriteToggle(salon)}
-              />
-            ))}
-          </div>
+          {isLoadingBusinesses ? (
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pl-4 pr-3 pb-4">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="min-w-[280px] h-[200px] bg-stone-200 rounded-2xl animate-pulse"
+                />
+              ))}
+            </div>
+          ) : businessError ? (
+            <div className="px-4 pb-4">
+              <p className="text-red-500 text-sm mb-2">Salonlarni yuklashda xatolik</p>
+              <button
+                onClick={() => refetch()}
+                className="text-primary text-sm font-medium"
+              >
+                Qayta urinish
+              </button>
+            </div>
+          ) : nearestSalons.length > 0 ? (
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pl-4 pr-3 pb-4 overflow-hidden">
+              {nearestSalons.map((salon) => (
+                <FeaturedSalonCard
+                  key={salon.id}
+                  salon={salon}
+                  onClick={() => handleSalonClick(salon)}
+                  onFavoriteToggle={() => handleFavoriteToggle(salon)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 pb-4 text-center text-stone-500 text-sm h-72 flex items-center justify-center">
+              Yaqin atrofda salon topilmadi
+            </div>
+          )}
         </div>
 
         {/* Salon Feed */}
         <div className="flex flex-col">
-          {[...feedSalons, ...feedSalons, ...feedSalons].map((salon, index) => (
-            <SalonFeedCard
-              key={`${salon.id}-${index}`}
-              salon={salon}
-              onClick={() => handleSalonClick(salon)}
-              onBookClick={() => handleBookClick(salon)}
-              onLikeClick={() => console.log(`Like: ${salon.name}`)}
-              onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
-              onReviewsClick={() => handleReviewsClick(salon)}
-            />
-          ))}
+          {isLoadingBusinesses ? (
+            <>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="w-full h-[280px] bg-stone-100 animate-pulse"
+                />
+              ))}
+            </>
+          ) : businessError ? (
+            <div className="px-4 py-8 text-center">
+              <p className="text-red-500 text-sm mb-2">Salonlarni yuklashda xatolik</p>
+              <button
+                onClick={() => refetch()}
+                className="text-primary text-sm font-medium"
+              >
+                Qayta urinish
+              </button>
+            </div>
+          ) : feedSalons.length > 0 ? (
+            feedSalons.map((salon) => (
+              <SalonFeedCard
+                key={salon.id}
+                salon={salon}
+                onClick={() => handleSalonClick(salon)}
+                onBookClick={() => handleBookClick(salon)}
+                onLikeClick={() => console.log(`Like: ${salon.name}`)}
+                onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
+                onReviewsClick={() => handleReviewsClick(salon)}
+              />
+            ))
+          ) : (
+            <div className="px-4 py-8 text-center text-stone-500 text-sm">
+            </div>
+          )}
         </div>
       </div>
 
