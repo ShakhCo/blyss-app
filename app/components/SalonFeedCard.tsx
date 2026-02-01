@@ -1,8 +1,11 @@
 import { Button } from "@heroui/react";
 import { ChevronRight, MessageCircle, Navigation, Star } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import type { Review, Stylist } from "~/components/ReviewCard";
 import { Logo } from "./icons/Logo";
 import { useI18nStore } from "~/stores/i18n-store";
+import { useTestableLocation } from "~/stores/location";
+import { getDistance } from "~/lib/business-api";
 
 export interface SalonFeedData {
   id: string;
@@ -13,6 +16,7 @@ export interface SalonFeedData {
   comments?: number;
   rating?: number;
   distance?: string;
+  businessLocation?: { lat: number; lng: number };
   services?: string[];
   gallery?: string[];
   reviews?: Review[];
@@ -37,7 +41,34 @@ export function SalonFeedCard({
   onReviewsClick,
 }: SalonFeedCardProps) {
   const { t } = useI18nStore();
+  const userLocation = useTestableLocation();
   const galleryImages = salon.gallery ?? (salon.image ? [salon.image, salon.image, salon.image, salon.image] : []);
+
+  // Fetch real driving distance
+  const { data: realDistance, isLoading: isDistanceLoading } = useQuery({
+    queryKey: ["distance", salon.id, userLocation?.lat, userLocation?.lon],
+    queryFn: async () => {
+      if (!userLocation || !salon.businessLocation) return null;
+      const result = await getDistance({
+        userLocation: { lat: userLocation.lat, lng: userLocation.lon },
+        businessLocation: salon.businessLocation,
+      });
+      // Format and round down the distance
+      const distance = result.distance;
+      const rounded = distance < 1
+        ? Math.floor(distance * 20) / 20
+        : Math.floor(distance * 10) / 10;
+      return { value: rounded, metric: result.metric };
+    },
+    enabled: !!userLocation && !!salon.businessLocation,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: 1,
+  });
+
+  // Use real distance if available, fallback to straight-line distance
+  const displayDistance = realDistance
+    ? `${realDistance.value}${realDistance.metric}`
+    : salon.distance ?? "N/A";
 
   return (
     <button type="button" onClick={onClick} className="flex flex-col p-0 w-full text-left">
@@ -125,7 +156,11 @@ export function SalonFeedCard({
             className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
           >
             <Navigation size={20} className="mx-auto dark:text-stone-300" />
-            <span className="text-sm dark:text-stone-300">{salon.distance ?? "N/A"}</span>
+            {isDistanceLoading ? (
+              <span className="w-10 h-4 bg-stone-200 dark:bg-stone-700 rounded animate-pulse" />
+            ) : (
+              <span className="text-sm dark:text-stone-300">{displayDistance}</span>
+            )}
           </span>
         </div>
       </div>

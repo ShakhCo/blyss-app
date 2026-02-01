@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import type { Route } from "./+types/home";
 import { AppLayout } from "~/components/AppLayout";
 import {
@@ -16,7 +16,7 @@ import { useScrollProgress } from "~/hooks/useScrollProgress";
 import { bottomNav } from "~/stores/bottomNav";
 import { HomeSkeleton } from "~/components/skeletons";
 import { useOnboardingStore } from "~/stores/onboarding-store";
-import { useLocationStore } from "~/stores/location";
+import { useTestableLocation, getTestableLocation } from "~/stores/location";
 import { useI18nStore } from "~/stores/i18n-store";
 import { useBusinessesStore } from "~/stores/businesses";
 import { getNearestBusinesses, getBusinessDetails, type NearestBusiness } from "~/lib/business-api";
@@ -49,7 +49,7 @@ const DEFAULT_LOCATION = { lat: 41.2995, lng: 69.2401 };
 
 // Prefetch first page of businesses during navigation
 export async function clientLoader() {
-  const location = useLocationStore.getState().location;
+  const location = getTestableLocation();
 
   await queryClient.prefetchInfiniteQuery({
     queryKey: ["nearestBusinesses", location?.lat, location?.lon],
@@ -57,7 +57,7 @@ export async function clientLoader() {
       const result = await getNearestBusinesses({
         lat: location?.lat ?? DEFAULT_LOCATION.lat,
         lng: location?.lon ?? DEFAULT_LOCATION.lng,
-        radius: 100,
+        radius: 1000,
         page: 1,
         page_size: INITIAL_PAGE_SIZE,
       });
@@ -74,7 +74,7 @@ export default function Home() {
   const { ref: servicesRef, scrollProgress } = useScrollProgress();
   const [reviewsSalon, setReviewsSalon] = useState<SalonFeedData | null>(null);
   const clearOnboardingData = useOnboardingStore((state) => state.clearData);
-  const location = useLocationStore((state) => state.location);
+  const location = useTestableLocation();
   const { t, language } = useI18nStore();
   const cachedBusinesses = useBusinessesStore((state) => state.businesses);
   const setBusinesses = useBusinessesStore((state) => state.setBusinesses);
@@ -107,7 +107,7 @@ export default function Home() {
       const result = await getNearestBusinesses({
         lat: location?.lat ?? DEFAULT_LOCATION.lat,
         lng: location?.lon ?? DEFAULT_LOCATION.lng,
-        radius: 100,
+        radius: 1000,
         page: pageParam,
         page_size: pageSize,
       });
@@ -120,6 +120,7 @@ export default function Home() {
       }
       return undefined;
     },
+    placeholderData: keepPreviousData,
   });
 
   // Flatten all pages into a single array of businesses
@@ -166,8 +167,12 @@ export default function Home() {
   // Helper to format distance with fallback
   const formatDistance = (distance?: number, metric?: string) => {
     if (distance == null) return null;
-    const unit = metric || (distance < 1 ? "km" : "km");
-    return `${distance}${unit}`;
+    const unit = metric || "km";
+    // Round down: < 1km to nearest 0.05, >= 1km to nearest 0.1
+    const rounded = distance < 1
+      ? Math.floor(distance * 20) / 20  // 0.87 → 0.85
+      : Math.floor(distance * 10) / 10; // 3.54 → 3.5
+    return `${rounded}${unit}`;
   };
 
   // Map businesses to FeaturedSalon format
@@ -226,7 +231,8 @@ export default function Home() {
         likes: 75,
         rating: 4.5,
         comments: 12,
-        distance: distanceText ? `${distanceText} ${t('home.fromYou')}` : undefined,
+        distance: distanceText ?? undefined,
+        businessLocation: business.location ? { lat: business.location.lat, lng: business.location.lng } : undefined,
       } satisfies SalonFeedData;
     });
   }, [businesses, language, t]);

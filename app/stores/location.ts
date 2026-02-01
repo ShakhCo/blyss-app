@@ -14,7 +14,21 @@ interface LocationState {
   fetchLocation: () => Promise<void>;
 }
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
+const LOCATION_CACHE_MS = 60 * 60 * 1000; // 1 hour
+
+// TEST: Override location for distance testing (set to null to use real location)
+const TEST_LOCATION_OVERRIDE: { lat: number; lon: number } | null = null;
+
+// Selector that returns test location if override is set
+export const useTestableLocation = () => {
+  const realLocation = useLocationStore((state) => state.location);
+  return TEST_LOCATION_OVERRIDE ?? realLocation;
+};
+
+// Non-hook version for use outside components (e.g., loaders)
+export const getTestableLocation = () => {
+  return TEST_LOCATION_OVERRIDE ?? useLocationStore.getState().location;
+};
 
 export const useLocationStore = create<LocationState>()(
   persist(
@@ -27,9 +41,9 @@ export const useLocationStore = create<LocationState>()(
       fetchLocation: async () => {
         const state = get();
 
-        // Skip if updated within the last hour
-        if (state.last_updated && Date.now() - state.last_updated < ONE_HOUR_MS) {
-          console.log("[LocationStore] Skipping - updated within last hour");
+        // Skip if updated within cache interval
+        if (state.last_updated && Date.now() - state.last_updated < LOCATION_CACHE_MS) {
+          console.log("[LocationStore] Skipping - updated within cache interval");
           return;
         }
 
