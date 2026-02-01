@@ -10,12 +10,7 @@ export default [
   route("orders", "routes/orders.tsx"),
   route("messages", "routes/messages.tsx"),
   route("chat/:id", "routes/chat.tsx"),
-  route("salon/:id", "routes/salon.tsx", [
-    index("routes/salon.services.tsx"),
-    route("gallery", "routes/salon.gallery.tsx"),
-    route("reviews", "routes/salon.reviews.tsx"),
-    route("about", "routes/salon.about.tsx"),
-  ]),
+  route("salon/:id", "routes/salon.tsx"),
   route("booking", "routes/booking.tsx"),
   route("booking/add-service", "routes/booking-add-service.tsx"),
   route("map", "routes/map.tsx"),

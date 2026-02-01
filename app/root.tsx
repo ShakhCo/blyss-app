@@ -8,22 +8,13 @@ import {
   ScrollRestoration,
   useNavigation,
 } from "react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Logo } from "./components/icons/Logo";
 import { AuthGuard } from "./components/auth-guard";
-
-// Create QueryClient instance
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-});
+import { queryClient } from "~/lib/query-client";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -75,9 +66,9 @@ export default function App() {
 
   useEffect(() => {
     // Initialize Eruda console for debugging
-    // import("eruda").then((eruda) => {
-    //   eruda.default.init();
-    // });
+    import("eruda").then((eruda) => {
+      eruda.default.init();
+    });
 
     // Initialize TMA SDK only on client side
     import("@tma.js/sdk-react").then(async ({ init, backButton, retrieveLaunchParams, viewport, swipeBehavior }) => {

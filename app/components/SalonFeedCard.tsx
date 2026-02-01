@@ -78,12 +78,12 @@ export function SalonFeedCard({
               <span>{salon.name}</span>
             </h3>
             {salon.services && salon.services.length > 0 && (
-              <div className="flex items-center text-base text-stone-500 dark:text-stone-500">
+              <div className="flex items-center text-sm text-stone-500 dark:text-stone-500">
                 <span className="truncate">
                   {salon.services.slice(0, -1).join(" · ")}
                 </span>
-                {salon.services.length > 1 && <span className="mx-1">·</span>}
-                <span className="shrink-0">{salon.services[salon.services.length - 1]}</span>
+                {salon.services.length > 1 && <span className="mx-1">...</span>}
+                {/* <span className="shrink-0">{salon.services[salon.services.length - 1]}</span> */}
               </div>
             )}
           </div>

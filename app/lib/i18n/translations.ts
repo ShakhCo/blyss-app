@@ -31,6 +31,7 @@ export const translations = {
     'home.noSalonsNearby': "Yaqin atrofda salon topilmadi",
     'home.fromYou': "sizdan",
     'home.book': "Band qilish",
+    'home.loadingMore': "Yuklanmoqda...",
 
     // Services
     'service.haircut': "Soch olish",
@@ -144,6 +145,7 @@ export const translations = {
     'home.noSalonsNearby': "Салоны поблизости не найдены",
     'home.fromYou': "от вас",
     'home.book': "Забронировать",
+    'home.loadingMore': "Загрузка...",
 
     // Services
     'service.haircut': "Стрижка",

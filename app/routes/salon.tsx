@@ -1,16 +1,23 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate, useLocation, Outlet } from "react-router";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { useParams, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@heroui/react";
 import { AppLayout } from "~/components/AppLayout";
 import type { Route } from "./+types/salon";
 import { bottomNav } from "~/stores/bottomNav";
-import { bookingUI } from "~/stores/booking";
-import { Star, Clock } from "lucide-react";
+import { bookingUI, bookingCart } from "~/stores/booking";
+import { Star, Clock, MapPin, Phone, ChevronDown } from "lucide-react";
 import { getBusinessDetails, type BusinessDetailsResponse, type WorkingHours } from "~/lib/business-api";
 import { Logo } from "~/components/icons/Logo";
 import { useSafeAreaValues } from "~/hooks/useSafeAreaValues";
 import { useI18nStore } from "~/stores/i18n-store";
+import { queryClient } from "~/lib/query-client";
+import { BottomSheet } from "~/components/BottomSheet";
+import { SlidePanel } from "~/components/SlidePanel";
+import { ReviewCard } from "~/components/ReviewCard";
+import { ReviewFilters, type ReviewFiltersState } from "~/components/ReviewFilters";
+import { RatingSummary } from "~/components/RatingSummary";
 
 // Mock salon data - shared across all salon routes
 export const salonsData: Record<string, {
@@ -80,13 +87,8 @@ export const salonsData: Record<string, {
     services: [
       { id: "1", name: "Soch olish klassik", duration: "30 daqiqa", price: "40,000", category: "Soch" },
       { id: "2", name: "Soch olish premium", duration: "45 daqiqa", price: "60,000", category: "Soch" },
-      // { id: "3", name: "Fade soch olish", duration: "45 daqiqa", price: "55,000", category: "Soch" },
       { id: "4", name: "Soch bo'yash", duration: "1 soat", price: "80,000", category: "Soch" },
-      // { id: "5", name: "Soch davolash", duration: "45 daqiqa", price: "70,000", category: "Soch" },
       { id: "6", name: "Soqol olish", duration: "20 daqiqa", price: "25,000", category: "Soqol" },
-      // { id: "7", name: "Soqol shakllantirish", duration: "30 daqiqa", price: "35,000", category: "Soqol" },
-      // { id: "8", name: "Soqol bo'yash", duration: "30 daqiqa", price: "40,000", category: "Soqol" },
-      // { id: "9", name: "Royal shave", duration: "40 daqiqa", price: "50,000", category: "Soqol" },
       { id: "10", name: "Soch + Soqol kombo", duration: "50 daqiqa", price: "70,000", category: "Soqol" },
       { id: "11", name: "Yuz tozalash", duration: "30 daqiqa", price: "50,000", category: "Teri" },
       { id: "12", name: "Yuz massaji", duration: "20 daqiqa", price: "35,000", category: "Teri" },
@@ -131,170 +133,23 @@ export const salonsData: Record<string, {
       },
     ],
   },
-  "2": {
-    id: "2",
-    name: "Boss Barbershop",
-    image: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&h=600&fit=crop",
-    gallery: [
-      "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=400&h=400&fit=crop",
-    ],
-    rating: 4.7,
-    reviewCount: "2.7k",
-    address: "Amir Temur shoh ko'chasi, 108, Toshkent",
-    phone: "+998 90 234 56 78",
-    workingHours: "10:00 - 22:00",
-    weeklyHours: [
-      { day: "Dushanba", hours: "10:00 - 22:00", isOpen: true },
-      { day: "Seshanba", hours: "10:00 - 22:00", isOpen: true },
-      { day: "Chorshanba", hours: "10:00 - 22:00", isOpen: true },
-      { day: "Payshanba", hours: "10:00 - 22:00", isOpen: true },
-      { day: "Juma", hours: "10:00 - 22:00", isOpen: true },
-      { day: "Shanba", hours: "10:00 - 22:00", isOpen: true },
-      { day: "Yakshanba", hours: "11:00 - 18:00", isOpen: true },
-    ],
-    description: "Boss Barbershop - premium erkaklar sartaroshxonasi. Biz har bir mijozga individual yondashuvni taklif qilamiz. Zamonaviy uslublar va klassik texnikalar.",
-    services: [
-      { id: "1", name: "Soch olish klassik", duration: "30 daqiqa", price: "45,000", category: "Soch" },
-      { id: "2", name: "Soch olish VIP", duration: "1 soat", price: "80,000", category: "Soch" },
-      { id: "3", name: "Fade haircut", duration: "45 daqiqa", price: "60,000", category: "Soch" },
-      { id: "4", name: "Skin fade", duration: "50 daqiqa", price: "65,000", category: "Soch" },
-      { id: "5", name: "Soch bo'yash", duration: "1 soat", price: "90,000", category: "Soch" },
-      { id: "6", name: "Soqol olish", duration: "20 daqiqa", price: "30,000", category: "Soqol" },
-      { id: "7", name: "Soqol dizayn", duration: "35 daqiqa", price: "45,000", category: "Soqol" },
-      { id: "8", name: "Hot towel shave", duration: "45 daqiqa", price: "55,000", category: "Soqol" },
-      { id: "9", name: "Soch + Soqol", duration: "1 soat", price: "75,000", category: "Soqol" },
-      { id: "10", name: "Boss paket", duration: "1.5 soat", price: "120,000", category: "Soqol" },
-      { id: "11", name: "Yuz tozalash", duration: "30 daqiqa", price: "45,000", category: "Teri" },
-      { id: "12", name: "Charcoal mask", duration: "25 daqiqa", price: "40,000", category: "Teri" },
-      { id: "13", name: "Bosh massaji", duration: "20 daqiqa", price: "35,000", category: "Teri" },
-    ],
-    amenities: ["Wi-Fi", "Choy/Qahva", "PlayStation", "TV"],
-    stylists: [
-      { id: "s1", name: "Jasur", avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop", role: "Master barber" },
-      { id: "s2", name: "Otabek", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", role: "Senior barber" },
-    ],
-    reviews: [
-      {
-        id: "1",
-        author: "Alisher M.",
-        avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop",
-        rating: 5,
-        date: "3 kun oldin",
-        text: "Premium xizmat! Eng yaxshi barbershop shaharda.",
-        services: ["Soch olish VIP", "Hot towel shave"],
-        stylistId: "s1",
-      },
-      {
-        id: "2",
-        author: "Temur N.",
-        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-        rating: 5,
-        date: "1 hafta oldin",
-        text: "Fade haircut zo'r chiqdi, ustalar professional.",
-        services: ["Fade haircut", "Soqol dizayn"],
-        stylistId: "s2",
-      },
-    ],
-  },
-  "3": {
-    id: "3",
-    name: "Malika Go'zallik Saloni",
-    image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&h=600&fit=crop",
-    gallery: [
-      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1600948836101-f9ffda59d250?w=400&h=400&fit=crop",
-    ],
-    rating: 4.9,
-    reviewCount: "1.8k",
-    address: "Bobur ko'chasi, 42, Toshkent",
-    phone: "+998 90 345 67 89",
-    workingHours: "09:00 - 21:00",
-    weeklyHours: [
-      { day: "Dushanba", hours: "09:00 - 21:00", isOpen: true },
-      { day: "Seshanba", hours: "09:00 - 21:00", isOpen: true },
-      { day: "Chorshanba", hours: "09:00 - 21:00", isOpen: true },
-      { day: "Payshanba", hours: "09:00 - 21:00", isOpen: true },
-      { day: "Juma", hours: "09:00 - 21:00", isOpen: true },
-      { day: "Shanba", hours: "09:00 - 20:00", isOpen: true },
-      { day: "Yakshanba", hours: "10:00 - 18:00", isOpen: true },
-    ],
-    description: "Malika Go'zallik Saloni - ayollar uchun zamonaviy go'zallik saloni. Biz yuqori sifatli xizmatlar ko'rsatamiz: soch turmagi, pardoz, manikur, pedikur va spa xizmatlari.\n\nBizning professional jamoamiz sizga eng yaxshi natijalarni taqdim etadi.",
-    services: [
-      { id: "1", name: "Soch olish", duration: "45 daqiqa", price: "60,000", category: "Soch" },
-      { id: "2", name: "Soch bo'yash", duration: "2 soat", price: "200,000", category: "Soch" },
-      { id: "3", name: "Ukladka", duration: "45 daqiqa", price: "80,000", category: "Soch" },
-      { id: "4", name: "Keratin davolash", duration: "2.5 soat", price: "350,000", category: "Soch" },
-      { id: "5", name: "Balayaj", duration: "3 soat", price: "400,000", category: "Soch" },
-      { id: "6", name: "Kelin soch turmagi", duration: "2 soat", price: "300,000", category: "Soch" },
-      { id: "7", name: "Pardoz kunlik", duration: "1 soat", price: "100,000", category: "Yuz" },
-      { id: "8", name: "Pardoz oqshom", duration: "1.5 soat", price: "180,000", category: "Yuz" },
-      { id: "9", name: "Kelin pardozi", duration: "2.5 soat", price: "500,000", category: "Yuz" },
-      { id: "10", name: "Qosh bo'yash", duration: "30 daqiqa", price: "40,000", category: "Yuz" },
-      { id: "11", name: "Qosh lamination", duration: "45 daqiqa", price: "80,000", category: "Yuz" },
-      { id: "12", name: "Kiprik uzaytirish", duration: "2 soat", price: "180,000", category: "Yuz" },
-      { id: "13", name: "Manikur klassik", duration: "1 soat", price: "70,000", category: "Tirnoq" },
-      { id: "14", name: "Manikur gel lak", duration: "1.5 soat", price: "100,000", category: "Tirnoq" },
-      { id: "15", name: "Tirnoq dizayni", duration: "2 soat", price: "150,000", category: "Tirnoq" },
-      { id: "16", name: "Pedikur", duration: "1.5 soat", price: "90,000", category: "Tirnoq" },
-      { id: "17", name: "Yuz tozalash", duration: "1 soat", price: "150,000", category: "Teri" },
-      { id: "18", name: "Yuz parvarishi", duration: "1 soat", price: "180,000", category: "Teri" },
-      { id: "19", name: "Klassik massaj", duration: "1 soat", price: "150,000", category: "Spa" },
-      { id: "20", name: "Relaks massaj", duration: "1.5 soat", price: "200,000", category: "Spa" },
-    ],
-    amenities: ["Wi-Fi", "Choy/Qahva", "Avtoturargoh", "Konditsioner", "Spa"],
-    stylists: [
-      { id: "s1", name: "Malika", avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop", role: "Founder & Master stylist" },
-      { id: "s2", name: "Dilnoza", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop", role: "Senior stylist" },
-      { id: "s3", name: "Gulnora", avatar: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&h=100&fit=crop", role: "Makeup artist" },
-      { id: "s4", name: "Sevinch", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", role: "Nail technician" },
-    ],
-    reviews: [
-      {
-        id: "1",
-        author: "Nilufar A.",
-        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
-        rating: 5,
-        date: "2 kun oldin",
-        text: "Juda yaxshi salon! Xizmat sifati ajoyib, xodimlar juda mehribon.",
-        services: ["Soch bo'yash", "Ukladka"],
-        stylistId: "s2",
-      },
-      {
-        id: "2",
-        author: "Madina K.",
-        avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
-        rating: 5,
-        date: "1 hafta oldin",
-        text: "Kelin pardozi zo'r bo'ldi. Aynan men xohlagan kabi chiqdi.",
-        services: ["Kelin pardozi", "Kelin soch turmagi"],
-        stylistId: "s3",
-      },
-      {
-        id: "3",
-        author: "Zarina T.",
-        avatar: "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=100&h=100&fit=crop",
-        rating: 5,
-        date: "2 hafta oldin",
-        text: "Eng yaxshi go'zallik saloni! Hammasi professional darajada.",
-        services: ["Manikur gel lak", "Pedikur", "Qosh lamination"],
-        stylistId: "s4",
-      },
-    ],
-  },
 };
 
 type TabType = "services" | "gallery" | "reviews" | "about";
 
-const tabIds: { id: TabType; path: string }[] = [
-  { id: "services", path: "" },
-  { id: "gallery", path: "gallery" },
-  { id: "reviews", path: "reviews" },
-  { id: "about", path: "about" },
+type ServiceType = {
+  id: string;
+  name: string;
+  duration: string;
+  price: string;
+  category: string;
+};
+
+const tabs: { id: TabType; index: number }[] = [
+  { id: "services", index: 0 },
+  { id: "gallery", index: 1 },
+  { id: "reviews", index: 2 },
+  { id: "about", index: 3 },
 ];
 
 export function meta({ }: Route.MetaArgs) {
@@ -304,23 +159,53 @@ export function meta({ }: Route.MetaArgs) {
   ];
 }
 
-// Get tab index for animation direction
-const getTabIndex = (tabId: TabType): number => {
-  return tabIds.findIndex(t => t.id === tabId);
-};
+// Prefetch salon details during navigation
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const { id } = params;
 
-export default function SalonLayout() {
+  if (id) {
+    await queryClient.prefetchQuery({
+      queryKey: ["business", id],
+      queryFn: () => getBusinessDetails(id),
+    });
+  }
+
+  return null;
+}
+
+export default function SalonPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [swipeDirection, setSwipeDirection] = useState<1 | -1>(1);
-  const previousTabRef = useRef<TabType>("services");
   const { t, language } = useI18nStore();
-
   const { safeAreaValue, contentAreaValue } = useSafeAreaValues();
 
+  // Tab state
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [swipeDirection, setSwipeDirection] = useState<1 | -1>(1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Service modal state
+  const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+
+  // Gallery modal state
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [galleryDragX, setGalleryDragX] = useState(0);
+  const galleryStartXRef = useRef(0);
+  const galleryIsDraggingRef = useRef(false);
+
+  // Reviews filter state
+  const [reviewFilters, setReviewFilters] = useState<ReviewFiltersState>({
+    rating: "all",
+    service: "all",
+    stylist: "all",
+  });
+
+  // About section state
+  const [isHoursExpanded, setIsHoursExpanded] = useState(false);
+
   // Build tabs with translated labels
-  const tabs = tabIds.map(tab => ({
+  const tabsWithLabels = tabs.map(tab => ({
     ...tab,
     label: t(`salon.tabs.${tab.id}` as any),
   }));
@@ -332,50 +217,26 @@ export default function SalonLayout() {
     enabled: !!id,
   });
 
-  // Determine active tab from current path (hook must be called before conditional returns)
-  const getActiveTab = (): TabType => {
-    const path = location.pathname;
-    if (path.endsWith("/gallery")) return "gallery";
-    if (path.endsWith("/reviews")) return "reviews";
-    if (path.endsWith("/about")) return "about";
-    return "services";
-  };
-
-  const activeTab = getActiveTab();
-
-  // Update swipe direction when tab changes (hook must be called before conditional returns)
-  useEffect(() => {
-    const currentIndex = getTabIndex(activeTab);
-    const previousIndex = getTabIndex(previousTabRef.current);
-    if (currentIndex !== previousIndex) {
-      setSwipeDirection(currentIndex > previousIndex ? 1 : -1);
-      previousTabRef.current = activeTab;
-    }
-  }, [activeTab]);
-
-  // Hide bottom nav (hook must be called before conditional returns)
+  // Hide bottom nav
   useEffect(() => {
     bottomNav.hide();
-    // Reset booking UI state when visiting salon page
     bookingUI.reset();
     return () => {
       bottomNav.show();
     };
   }, []);
 
-
-  // Helper to convert seconds to 24-hour time format (e.g., 32400 -> "09:00")
+  // Helper to convert seconds to 24-hour time format
   const secondsTo24Hour = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   };
 
-  // Day name mapping from English to translation keys
-  const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+  // Day name mapping
   const getDayName = (day: string): string => t(`day.${day}` as any);
 
-  // Transform working hours from API format to weeklyHours format
+  // Transform working hours from API format
   const transformWorkingHours = (workingHours: WorkingHours) => {
     const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
     return dayOrder.map(day => {
@@ -402,36 +263,143 @@ export default function SalonLayout() {
 
   // Transform API data to match the expected salon format
   const salon = businessData ? {
-    id: businessData.business.id,
-    name: businessData.business.name,
-    image: businessData.business.avatar_url,
+    id: businessData.business_id || id || "",
+    name: businessData.business_name || "Unknown",
+    image: businessData.avatar_url || undefined,
     gallery: [],
     rating: 4.5,
     reviewCount: "1.2k",
-    address: "Toshkent", // TODO: Add address to API response
-    phone: businessData.business.business_phone_number,
-    workingHours: getTodayWorkingHours(businessData.business.working_hours),
-    weeklyHours: transformWorkingHours(businessData.business.working_hours),
-    description: "", // TODO: Add description to API response
-    services: businessData.services.map(s => ({
-      id: s.id,
-      name: s.name[language] || s.name.uz,
-      duration: `${s.duration_minutes} ${t('common.minutes')}`,
-      price: s.price.toLocaleString(),
+    address: businessData.business_location?.display_address || businessData.business_location?.city || "Toshkent",
+    phone: businessData.business_phone_number || "",
+    workingHours: businessData.working_hours ? getTodayWorkingHours(businessData.working_hours) : "",
+    weeklyHours: businessData.working_hours ? transformWorkingHours(businessData.working_hours) : [],
+    description: "",
+    services: (businessData.services || []).map(s => ({
+      id: s.id || "",
+      name: s.name?.[language] || s.name?.uz || "",
+      duration: s.duration_minutes ? `${s.duration_minutes} ${t('common.minutes')}` : "",
+      price: s.price?.toLocaleString() || "0",
       category: "General",
     })),
     amenities: [],
     stylists: [],
     reviews: [],
-  } : salonsData["1"]; // Fallback to mock data
+  } : salonsData["1"];
 
-  // Skeleton component for loading state
+  const handleTabClick = (index: number) => {
+    setSwipeDirection(index > activeTabIndex ? 1 : -1);
+    setActiveTabIndex(index);
+  };
+
+  // Service modal handlers
+  const openServiceModal = (service: ServiceType) => {
+    setSelectedService(service);
+    setIsServiceModalOpen(true);
+  };
+
+  const closeServiceModal = () => {
+    setIsServiceModalOpen(false);
+  };
+
+  const handleBookService = (service: ServiceType) => {
+    closeServiceModal();
+    bookingCart.clear();
+    bookingCart.setSalon(salon.id, salon.name);
+    bookingCart.addService(service);
+    navigate(`/booking?salonId=${salon.id}&serviceId=${service.id}`);
+  };
+
+  // Gallery handlers
+  const closeGalleryModal = () => {
+    setSelectedImageIndex(null);
+    setGalleryDragX(0);
+  };
+
+  const goToNextImage = () => {
+    if (selectedImageIndex !== null && selectedImageIndex < salon.gallery.length - 1) {
+      setSelectedImageIndex(selectedImageIndex + 1);
+    }
+    setGalleryDragX(0);
+  };
+
+  const goToPrevImage = () => {
+    if (selectedImageIndex !== null && selectedImageIndex > 0) {
+      setSelectedImageIndex(selectedImageIndex - 1);
+    }
+    setGalleryDragX(0);
+  };
+
+  const handleGalleryTouchStart = (e: React.TouchEvent) => {
+    galleryStartXRef.current = e.touches[0].clientX;
+    galleryIsDraggingRef.current = true;
+  };
+
+  const handleGalleryTouchMove = (e: React.TouchEvent) => {
+    if (!galleryIsDraggingRef.current) return;
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - galleryStartXRef.current;
+
+    if (selectedImageIndex === 0 && diff > 0) {
+      setGalleryDragX(diff * 0.3);
+    } else if (selectedImageIndex === salon.gallery.length - 1 && diff < 0) {
+      setGalleryDragX(diff * 0.3);
+    } else {
+      setGalleryDragX(diff);
+    }
+  };
+
+  const handleGalleryTouchEnd = () => {
+    galleryIsDraggingRef.current = false;
+    const threshold = window.innerWidth * 0.2;
+
+    if (galleryDragX < -threshold && selectedImageIndex !== null && selectedImageIndex < salon.gallery.length - 1) {
+      goToNextImage();
+    } else if (galleryDragX > threshold && selectedImageIndex !== null && selectedImageIndex > 0) {
+      goToPrevImage();
+    } else {
+      setGalleryDragX(0);
+    }
+  };
+
+  // Reviews helpers
+  const getStylist = (stylistId: string) => salon.stylists.find((s) => s.id === stylistId);
+
+  const allReviewServices = useMemo(() => {
+    const services = new Set<string>();
+    salon.reviews.forEach((review) => {
+      review.services.forEach((service) => services.add(service));
+    });
+    return Array.from(services);
+  }, [salon.reviews]);
+
+  const filteredReviews = salon.reviews
+    .filter((review) => {
+      if (reviewFilters.service !== "all" && !review.services.includes(reviewFilters.service)) return false;
+      if (reviewFilters.stylist !== "all" && review.stylistId !== reviewFilters.stylist) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (reviewFilters.rating === "high") return b.rating - a.rating;
+      if (reviewFilters.rating === "low") return a.rating - b.rating;
+      return 0;
+    });
+
+  // About section helpers
+  const dayKeys = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+  const today = new Date();
+  const currentDayKey = dayKeys[today.getDay()];
+  const currentDayName = t(`day.${currentDayKey}` as any);
+  const todaySchedule = salon.weeklyHours.find((s) => s.day === currentDayName);
+
+  const hasDescription = salon.description && salon.description.trim().length > 0;
+  const hasWeeklyHours = salon.weeklyHours && salon.weeklyHours.length > 0;
+  const hasAmenities = salon.amenities && salon.amenities.length > 0;
+  const hasStylists = salon.stylists && salon.stylists.length > 0;
+
+  // Skeleton component
   const SalonSkeleton = () => (
     <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900">
-      {/* Hero Image Skeleton */}
       <div className="h-48 sticky top-0 z-20 bg-stone-200 dark:bg-stone-800 animate-pulse" />
-
-      {/* Salon Info Skeleton */}
       <div className="px-4 py-3 bg-white dark:bg-stone-900 relative z-10">
         <div className="h-6 w-48 bg-stone-200 dark:bg-stone-800 rounded animate-pulse mb-2" />
         <div className="flex items-center gap-3">
@@ -439,19 +407,15 @@ export default function SalonLayout() {
           <div className="h-4 w-24 bg-stone-200 dark:bg-stone-800 rounded animate-pulse" />
         </div>
       </div>
-
-      {/* Tabs Skeleton */}
       <div className="sticky top-48 z-40 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
         <div className="flex">
-          {tabs.map((tab) => (
+          {tabsWithLabels.map((tab) => (
             <div key={tab.id} className="flex-1 py-3">
               <div className="h-4 w-16 mx-auto bg-stone-200 dark:bg-stone-800 rounded animate-pulse" />
             </div>
           ))}
         </div>
       </div>
-
-      {/* Content Area Skeleton */}
       <div className="p-4 space-y-3">
         <div className="h-24 w-full bg-stone-200 dark:bg-stone-800 rounded-lg animate-pulse" />
         <div className="h-24 w-full bg-stone-200 dark:bg-stone-800 rounded-lg animate-pulse" />
@@ -460,7 +424,6 @@ export default function SalonLayout() {
     </div>
   );
 
-  // Show loading state
   if (isLoading) {
     return (
       <AppLayout back removeHeader>
@@ -469,17 +432,13 @@ export default function SalonLayout() {
     );
   }
 
-  // Show error state
   if (error) {
     return (
       <AppLayout back removeHeader>
         <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900 flex items-center justify-center p-4">
           <div className="text-center">
             <p className="text-red-500 mb-2">{t('salon.error')}</p>
-            <button
-              onClick={() => navigate("/")}
-              className="text-primary text-sm font-medium"
-            >
+            <button onClick={() => navigate("/")} className="text-primary text-sm font-medium">
               {t('salon.backToHome')}
             </button>
           </div>
@@ -488,42 +447,259 @@ export default function SalonLayout() {
     );
   }
 
-  const handleTabClick = (tab: typeof tabs[0]) => {
-    const currentIndex = getTabIndex(activeTab);
-    const newIndex = getTabIndex(tab.id);
-    setSwipeDirection(newIndex > currentIndex ? 1 : -1);
+  // Tab content components
+  const ServicesContent = () => (
+    <div className="pt-2">
+      <div className="divide-y divide-stone-100 dark:divide-stone-800">
+        {salon.services.map((service) => (
+          <div
+            key={service.id}
+            onClick={() => openServiceModal(service)}
+            className="px-4 py-3 flex items-center justify-between gap-3"
+          >
+            <button type="button" className="flex-1 min-w-0 text-left">
+              <h4 className="font-semibold text-stone-900 dark:text-stone-100">{service.name}</h4>
+              <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
+                {service.price} {t('common.currency')} · {service.duration}
+              </p>
+            </button>
+            <Button size="sm" onPress={() => handleBookService(service)}>
+              {t('salon.book')}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
-    const basePath = `/salon/${id}`;
-    const newPath = tab.path ? `${basePath}/${tab.path}` : basePath;
-    navigate(newPath, { replace: true });
-  };
+  const GalleryContent = () => (
+    <div className="p-0">
+      <div className="grid grid-cols-3 gap-0.5">
+        {salon.gallery.map((img, index) => (
+          <div
+            key={index}
+            onClick={() => setSelectedImageIndex(index)}
+            className="aspect-square overflow-hidden cursor-pointer"
+          >
+            <img src={img} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
+          </div>
+        ))}
+      </div>
+      {salon.gallery.length === 0 && (
+        <div className="py-12 text-center text-stone-500 dark:text-stone-400">
+          {t('salon.noImages')}
+        </div>
+      )}
+    </div>
+  );
+
+  const ReviewsContent = () => (
+    <div className="py-4 space-y-4">
+      <div className="px-4">
+        <RatingSummary rating={salon.rating} reviewCount={salon.reviewCount} />
+      </div>
+      <ReviewFilters
+        services={allReviewServices}
+        stylists={salon.stylists}
+        value={reviewFilters}
+        onChange={setReviewFilters}
+      />
+      <div className="divide-y divide-stone-100 dark:divide-stone-800">
+        {filteredReviews.map((review) => (
+          <ReviewCard
+            key={review.id}
+            review={review}
+            stylist={getStylist(review.stylistId)}
+            onLike={(id) => console.log("Like:", id)}
+            onDislike={(id) => console.log("Dislike:", id)}
+          />
+        ))}
+        {filteredReviews.length === 0 && (
+          <div className="py-8 text-center text-stone-500 dark:text-stone-400">
+            {t('salon.noReviews')}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const AboutContent = () => (
+    <div className="pt-2">
+      {hasDescription && (
+        <div className="border-b-6 border-stone-50 dark:border-stone-800">
+          <div className="px-4 py-3 flex items-center gap-3">
+            <div className="flex flex-col">
+              <span className="font-semibold text-stone-900 dark:text-stone-100">{t('salon.aboutSalon')}</span>
+              <span className="text-sm text-stone-400">{t('salon.descriptionInfo')}</span>
+            </div>
+          </div>
+          <div className="px-4 pb-4">
+            <p className="text-stone-600 text-base dark:text-stone-400 leading-relaxed whitespace-pre-line">
+              {salon.description}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="border-b-6 border-stone-50 dark:border-stone-800">
+        <div className="divide-y divide-stone-100 dark:divide-stone-800">
+          {salon.address && (
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="size-10 shrink-0 bg-stone-50 dark:bg-stone-800/50 rounded-xl flex items-center justify-center">
+                <MapPin size={22} className="text-primary" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm text-stone-400 dark:text-stone-500">{t('salon.address')}</span>
+                <span className="font-medium text-stone-900 dark:text-stone-100 truncate">{salon.address}</span>
+              </div>
+            </div>
+          )}
+          {salon.phone && (
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="size-10 shrink-0 bg-stone-50 dark:bg-stone-800/50 rounded-xl flex items-center justify-center">
+                <Phone size={22} className="text-primary" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm text-stone-400 dark:text-stone-500">{t('salon.phone')}</span>
+                <a href={`tel:${salon.phone}`} className="font-medium text-primary">{salon.phone}</a>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {hasWeeklyHours && (
+        <div className="border-b-6 border-stone-50 dark:border-stone-800">
+          <button
+            type="button"
+            onClick={() => setIsHoursExpanded(!isHoursExpanded)}
+            className="w-full px-4 py-3 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-10 shrink-0 bg-stone-50 dark:bg-stone-800/50 rounded-xl flex items-center justify-center">
+                <Clock size={22} className="text-primary" />
+              </div>
+              <div className="flex flex-col min-w-0 text-left">
+                <span className="text-sm text-stone-400 dark:text-stone-500">{t('salon.today')} · {currentDayName}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-stone-900 dark:text-stone-100">
+                    {todaySchedule?.hours || salon.workingHours}
+                  </span>
+                  {todaySchedule?.isOpen && (
+                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-500/20 rounded-full text-xs text-green-600 dark:text-green-400 font-medium">
+                      {t('salon.open')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <motion.div animate={{ rotate: isHoursExpanded ? 180 : 0 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
+              <ChevronDown size={20} className="text-stone-400" />
+            </motion.div>
+          </button>
+
+          <AnimatePresence initial={false}>
+            {isHoursExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="overflow-hidden"
+              >
+                <div className="px-4 pb-4 border-t border-stone-100 dark:border-stone-800">
+                  <div className="pt-3 space-y-1">
+                    {salon.weeklyHours.map((schedule) => {
+                      const isToday = schedule.day === currentDayName;
+                      return (
+                        <div key={schedule.day} className={`flex items-center justify-between py-2 px-3 rounded-xl ${isToday ? "bg-primary/5" : ""}`}>
+                          <span className={`${isToday ? "font-medium text-primary" : "text-stone-600 dark:text-stone-400"}`}>
+                            {schedule.day}
+                            {isToday && <span className="text-xs ml-1">({t('salon.todayShort')})</span>}
+                          </span>
+                          <span className={`font-medium ${schedule.isOpen ? (isToday ? "text-primary" : "text-stone-900 dark:text-stone-100") : "text-red-500 dark:text-red-400"}`}>
+                            {schedule.hours}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {hasAmenities && (
+        <div className="border-b-6 border-stone-50 dark:border-stone-800">
+          <div className="px-4 py-3 flex items-center gap-3">
+            <div className="flex flex-col">
+              <span className="font-semibold text-stone-900 dark:text-stone-100">{t('salon.amenities')}</span>
+              <span className="text-sm text-stone-400">{t('salon.amenitiesCount', { count: salon.amenities.length })}</span>
+            </div>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="flex flex-wrap gap-2">
+              {salon.amenities.map((amenity) => (
+                <span key={amenity} className="px-3 py-1 bg-stone-100 dark:bg-stone-800 rounded-xl text-sm font-medium text-stone-600 dark:text-stone-300">
+                  {amenity}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasStylists && (
+        <div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <div className="flex flex-col">
+              <span className="font-semibold text-stone-900 dark:text-stone-100">{t('salon.team')}</span>
+              <span className="text-sm text-stone-400">{t('salon.specialistsCount', { count: salon.stylists.length })}</span>
+            </div>
+          </div>
+          <div className="divide-y divide-stone-100 dark:divide-stone-800">
+            {salon.stylists.map((stylist) => (
+              <div key={stylist.id} className="px-4 py-3 flex items-center gap-3">
+                <img src={stylist.avatar} alt={stylist.name} className="size-12 rounded-full object-cover" />
+                <div className="flex flex-col min-w-0">
+                  <span className="font-semibold text-stone-900 dark:text-stone-100">{stylist.name}</span>
+                  <span className="text-sm text-stone-500 dark:text-stone-400">{stylist.role}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const tabContents = [
+    <ServicesContent key="services" />,
+    <GalleryContent key="gallery" />,
+    <ReviewsContent key="reviews" />,
+    <AboutContent key="about" />,
+  ];
 
   return (
     <AppLayout back removeHeader>
-      <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900">
-
-        {/* Hero Section with Image - sticky, stops when name reaches safe area */}
+      <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900 flex flex-col">
+        {/* Hero Section */}
         <div
           className="h-64 relative sticky z-20"
           style={{ top: `calc(${safeAreaValue.top + contentAreaValue.top + 23}px - 12rem)` }}
         >
           {salon.image ? (
-            <img
-              src={salon.image}
-              alt={salon.name}
-              className="w-full h-full object-cover"
-            />
+            <img src={salon.image} alt={salon.name} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
               <Logo width={100} height={100} />
             </div>
           )}
-          {/* Gradient overlay for text readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          {/* Salon name overlay - always visible */}
           <div className="absolute bottom-4 left-4 right-4">
             <h1 className="text-2xl font-bold text-white mb-2">{salon.name}</h1>
-            {/* Glassy badges for rating and status */}
             <div className="flex items-center gap-2">
               <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30">
                 <Star size={14} className="fill-yellow-400 text-yellow-400" />
@@ -538,24 +714,22 @@ export default function SalonLayout() {
           </div>
         </div>
 
-        {/* Tabs - sticky below the name area */}
+        {/* Tabs */}
         <div
           className="sticky z-30 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800"
           style={{ top: `calc(${safeAreaValue.top + contentAreaValue.top + 23}px + 4rem)` }}
         >
           <div className="flex">
-            {tabs.map((tab) => (
+            {tabsWithLabels.map((tab, index) => (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => handleTabClick(tab)}
-                className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === tab.id
-                  ? "text-primary"
-                  : "text-stone-500 dark:text-stone-400"
+                onClick={() => handleTabClick(index)}
+                className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTabIndex === index ? "text-primary" : "text-stone-500 dark:text-stone-400"
                   }`}
               >
                 {tab.label}
-                {activeTab === tab.id && (
+                {activeTabIndex === index && (
                   <motion.span
                     layoutId="salon-tab-indicator"
                     className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
@@ -567,44 +741,141 @@ export default function SalonLayout() {
           </div>
         </div>
 
-        {/* Tab Content - rendered via Outlet with animation */}
-        <div className="pb-64">
+        {/* Tab Content with swipe */}
+        <div
+          className="flex-1 min-h-0 overflow-hidden"
+          ref={containerRef}
+        >
           <AnimatePresence initial={false} mode="popLayout" custom={swipeDirection}>
             <motion.div
-              key={activeTab}
+              key={activeTabIndex}
               custom={swipeDirection}
               initial="enter"
               animate="center"
               exit="exit"
               variants={{
-                enter: (dir: number) => ({
-                  x: dir > 0 ? "100%" : "-100%",
-                  opacity: 0,
-                }),
-                center: {
-                  x: 0,
-                  opacity: 1,
-                },
-                exit: (dir: number) => ({
-                  x: dir > 0 ? "-100%" : "100%",
-                  opacity: 0,
-                }),
+                enter: (dir: number) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
+                center: { x: 0, opacity: 1 },
+                exit: (dir: number) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
               }}
-              transition={{
-                x: { type: "tween", duration: 0.3, ease: [0.32, 0.72, 0, 1] },
-                opacity: { duration: 0.2 },
+              transition={{ x: { type: "tween", duration: 0.3, ease: [0.32, 0.72, 0, 1] }, opacity: { duration: 0.2 } }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.2}
+              onDragEnd={(event, info) => {
+                const threshold = 50;
+                const { offset, velocity } = info;
+
+                if (offset.x < -threshold || velocity.x < -500) {
+                  // Swipe left - next tab
+                  if (activeTabIndex < tabs.length - 1) {
+                    setSwipeDirection(1);
+                    setActiveTabIndex(activeTabIndex + 1);
+                  }
+                } else if (offset.x > threshold || velocity.x > 500) {
+                  // Swipe right - previous tab
+                  if (activeTabIndex > 0) {
+                    setSwipeDirection(-1);
+                    setActiveTabIndex(activeTabIndex - 1);
+                  }
+                }
               }}
+              className="h-full overflow-y-auto pb-32"
+              style={{ touchAction: "pan-y" }}
             >
-              <Outlet context={{ salon }} />
+              {tabContents[activeTabIndex]}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Service Detail Modal */}
+      {selectedService && (
+        <BottomSheet
+          isOpen={isServiceModalOpen}
+          onClose={closeServiceModal}
+          title={selectedService.name}
+          footer={
+            <Button
+              className="w-full py-6 bg-primary text-white font-semibold rounded-2xl"
+              onPress={() => handleBookService(selectedService)}
+            >
+              {t('salon.book')} — {selectedService.price} {t('common.currency')}
+            </Button>
+          }
+        >
+          <div className="grid grid-cols-1 gap-4 py-4">
+            <div>
+              <p className="text-sm text-stone-500 dark:text-stone-400 mb-1">{t('salon.duration')}</p>
+              <p className="font-semibold text-stone-900 dark:text-white">{selectedService.duration}</p>
+            </div>
+            <div>
+              <p className="text-sm text-stone-500 dark:text-stone-400 mb-1">{t('salon.price')}</p>
+              <p className="font-bold text-lg text-primary">{selectedService.price} {t('common.currency')}</p>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-semibold text-stone-900 dark:text-white mb-2">{t('salon.aboutService')}</h3>
+            <p className="text-stone-600 dark:text-stone-400 leading-relaxed">{t('salon.serviceDescription')}</p>
+          </div>
+        </BottomSheet>
+      )}
+
+      {/* Gallery Modal */}
+      <SlidePanel isOpen={selectedImageIndex !== null} onClose={closeGalleryModal} showHeader={false} className="bg-black">
+        {selectedImageIndex !== null && (
+          <>
+            <div
+              className="absolute inset-0 flex items-center overflow-hidden"
+              onClick={closeGalleryModal}
+              onTouchStart={handleGalleryTouchStart}
+              onTouchMove={handleGalleryTouchMove}
+              onTouchEnd={handleGalleryTouchEnd}
+            >
+              <motion.div
+                className="flex items-center"
+                initial={false}
+                animate={{ x: `calc(${galleryDragX}px - ${selectedImageIndex * 100}vw)` }}
+                transition={{ duration: galleryIsDraggingRef.current ? 0 : 0.3, ease: [0.32, 0.72, 0, 1] }}
+                style={{ width: `${salon.gallery.length * 100}vw` }}
+              >
+                {salon.gallery.map((img, index) => (
+                  <div key={index} className="w-screen h-screen flex items-center justify-center shrink-0 px-0 relative">
+                    <img src={img} alt="" className="max-w-full max-h-[70vh] object-contain" onClick={closeGalleryModal} />
+                    <div className="absolute left-0 top-0 bottom-24 w-[25%] bg-transparent z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); goToPrevImage(); }} />
+                    <div className="absolute right-0 top-0 bottom-24 w-[25%] bg-transparent z-10 cursor-pointer" onClick={(e) => { e.stopPropagation(); goToNextImage(); }} />
+                  </div>
+                ))}
+              </motion.div>
+            </div>
+            <div className="absolute top-[calc(15vh-24px)] left-0 right-0 z-30 flex justify-center">
+              <div className="px-3 py-1 rounded-full bg-black/50 text-white text-sm">
+                {selectedImageIndex + 1}/{salon.gallery.length}
+              </div>
+            </div>
+            <div className="absolute bottom-4 left-0 right-0 z-20" onClick={(e) => e.stopPropagation()}>
+              <div className="flex gap-2 justify-center overflow-x-auto scrollbar-hide py-2">
+                {salon.gallery.map((img, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => { setSelectedImageIndex(index); setGalleryDragX(0); }}
+                    className={`shrink-0 size-12 rounded overflow-hidden transition-all ${index === selectedImageIndex ? "ring-2 ring-white scale-105" : "opacity-50 hover:opacity-75"
+                      }`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </SlidePanel>
     </AppLayout>
   );
 }
 
-// Export type for child routes to use
+// Export type for compatibility
 export type SalonContext = {
   salon: typeof salonsData[string];
 };

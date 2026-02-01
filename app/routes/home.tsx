@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import type { Route } from "./+types/home";
 import { AppLayout } from "~/components/AppLayout";
 import {
@@ -18,10 +18,15 @@ import { HomeSkeleton } from "~/components/skeletons";
 import { useOnboardingStore } from "~/stores/onboarding-store";
 import { useLocationStore } from "~/stores/location";
 import { useI18nStore } from "~/stores/i18n-store";
-import { getNearestBusinesses, getDistance, type Business } from "~/lib/business-api";
+import { useBusinessesStore } from "~/stores/businesses";
+import { getNearestBusinesses, getBusinessDetails, type NearestBusiness } from "~/lib/business-api";
 import { MapPin, Star } from "lucide-react";
 import { ReviewsModal } from "~/components/ReviewsModal";
-import { salonsData } from "./salon";
+import { queryClient } from "~/lib/query-client";
+
+// Pagination constants
+const INITIAL_PAGE_SIZE = 3;
+const LOAD_MORE_SIZE = 5;
 
 // Import service icons
 import scissorIcon from "~/assets/icons/scissor.png";
@@ -42,13 +47,38 @@ export function meta({ }: Route.MetaArgs) {
 // Default Tashkent coordinates if location not available
 const DEFAULT_LOCATION = { lat: 41.2995, lng: 69.2401 };
 
+// Prefetch first page of businesses during navigation
+export async function clientLoader() {
+  const location = useLocationStore.getState().location;
+
+  await queryClient.prefetchInfiniteQuery({
+    queryKey: ["nearestBusinesses", location?.lat, location?.lon],
+    queryFn: async () => {
+      const result = await getNearestBusinesses({
+        lat: location?.lat ?? DEFAULT_LOCATION.lat,
+        lng: location?.lon ?? DEFAULT_LOCATION.lng,
+        radius: 100,
+        page: 1,
+        page_size: INITIAL_PAGE_SIZE,
+      });
+      return result;
+    },
+    initialPageParam: 1,
+  });
+
+  return null;
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const { ref: servicesRef, scrollProgress } = useScrollProgress();
   const [reviewsSalon, setReviewsSalon] = useState<SalonFeedData | null>(null);
   const clearOnboardingData = useOnboardingStore((state) => state.clearData);
-  const { lat, lon } = useLocationStore();
+  const location = useLocationStore((state) => state.location);
   const { t, language } = useI18nStore();
+  const cachedBusinesses = useBusinessesStore((state) => state.businesses);
+  const setBusinesses = useBusinessesStore((state) => state.setBusinesses);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // All services for sticky header - using translations
   const allServices = useMemo(() => [
@@ -61,46 +91,71 @@ export default function Home() {
     { id: "7", name: t('service.massage'), icon: massageIcon },
   ], [t]);
 
-  // Fetch nearest businesses using React Query
-  const { data: businessesResponse, isLoading: isLoadingBusinesses, error: businessError, refetch } = useQuery({
-    queryKey: ["nearestBusinesses", lat, lon],
-    queryFn: async () => {
+  // Fetch nearest businesses using React Query with infinite scroll
+  const {
+    data,
+    isLoading: isLoadingBusinesses,
+    isFetchingNextPage,
+    error: businessError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["nearestBusinesses", location?.lat, location?.lon],
+    queryFn: async ({ pageParam = 1 }) => {
+      const pageSize = pageParam === 1 ? INITIAL_PAGE_SIZE : LOAD_MORE_SIZE;
       const result = await getNearestBusinesses({
-        lat: lat ?? DEFAULT_LOCATION.lat,
-        lng: lon ?? DEFAULT_LOCATION.lng,
+        lat: location?.lat ?? DEFAULT_LOCATION.lat,
+        lng: location?.lon ?? DEFAULT_LOCATION.lng,
         radius: 100,
-        page: 1,
-        page_size: 20,
+        page: pageParam,
+        page_size: pageSize,
       });
-
-      const userLat = lat ?? DEFAULT_LOCATION.lat;
-      const userLng = lon ?? DEFAULT_LOCATION.lng;
-
-      // Fetch accurate distances for each business
-      const businessWithDistances = await Promise.all(
-        result.data.map(async (business) => {
-          try {
-            const distanceResult = await getDistance({
-              userLocation: { lat: userLat, lng: userLng },
-              businessLocation: { lat: business.location.lat, lng: business.location.lng },
-            });
-            // Convert distance to km if API returns meters
-            const distanceInKm = distanceResult.metric === 'm'
-              ? distanceResult.distance / 1000
-              : distanceResult.distance;
-            return { ...business, distance: distanceInKm };
-          } catch {
-            // If distance fetch fails, keep the original distance
-            return business;
-          }
-        })
-      );
-
-      return businessWithDistances;
+      return result;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.pagination.has_next) {
+        return lastPage.pagination.page + 1;
+      }
+      return undefined;
     },
   });
 
-  const businesses = businessesResponse ?? [];
+  // Flatten all pages into a single array of businesses
+  const businesses = useMemo(() => {
+    if (!data?.pages) return [];
+    const allBusinesses = data.pages.flatMap(page => page.data || []);
+    return allBusinesses.filter(b => b.business_id);
+  }, [data]);
+
+  // Update cache when businesses change
+  useEffect(() => {
+    if (businesses.length > 0) {
+      setBusinesses(businesses);
+    }
+  }, [businesses, setBusinesses]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Show skeleton only if loading AND no cached data
+  const showSkeleton = isLoadingBusinesses && cachedBusinesses.length === 0;
 
   // Show bottom nav and clear onboarding data when home page mounts
   useEffect(() => {
@@ -108,28 +163,36 @@ export default function Home() {
     clearOnboardingData();
   }, []);
 
+  // Helper to format distance with fallback
+  const formatDistance = (distance?: number, metric?: string) => {
+    if (distance == null) return null;
+    const unit = metric || (distance < 1 ? "km" : "km");
+    return `${distance}${unit}`;
+  };
+
   // Map businesses to FeaturedSalon format
   const nearestSalons = useMemo(() => {
-    return businesses.slice(0, 5).map((business) => {
-      // Get active services and format them based on language
-      const activeServices = business.services.filter((s) => s.is_active);
-      const serviceNames = activeServices.slice(0, 2).map((s) => s.name[language] || s.name.uz);
-      const remainingCount = activeServices.length - 2;
+    return businesses.slice(0, 5).map((business, index) => {
+      // Get services and format them based on language
+      const services = business.services || [];
+      const serviceNames = services.slice(0, 2).map((s) => s.name?.[language] || s.name?.uz || "");
+      const remainingCount = Math.max(0, services.length - 2);
 
-      // Format distance: show meters if < 1km, otherwise km
-      const distanceValue = Math.round(business.distance * 10) / 10;
-      const distanceText = distanceValue < 1
-        ? `${Math.round(business.distance * 1000)}m`
-        : `${distanceValue}km`;
+      // Format distance using API-provided metric
+      const distanceText = formatDistance(business.distance, business.distance_metric);
+
+      // Use business_id if available, otherwise fallback to business_name or index
+      const businessId = business.business_id || business.business_name || `business-${index}`;
+      const businessName = business.business_name || "Unknown";
 
       return {
-        id: business.id,
-        name: business.business_name,
-        image: business.avatar_url,
+        id: businessId,
+        name: businessName,
+        image: business.avatar_url || undefined,
         services: remainingCount > 0
           ? [...serviceNames, `+${remainingCount}`]
           : serviceNames,
-        address: `${distanceText} ${t('home.fromYou')}`,
+        address: business.location?.display_address || (distanceText ? `${distanceText} ${t('home.fromYou')}` : ""),
         rating: 4.5,
         reviewCount: "1.2k",
         isFavorite: false,
@@ -139,34 +202,31 @@ export default function Home() {
 
   // Map businesses to SalonFeedData format
   const feedSalons = useMemo(() => {
-    return businesses.map((business) => {
-      const salonDetail = salonsData[business.id];
-      // Get active services and format them based on language
-      const activeServices = business.services.filter((s) => s.is_active);
-      const serviceNames = activeServices.slice(0, 3).map((s) => s.name[language] || s.name.uz);
-      const remainingCount = activeServices.length - 3;
+    return businesses.map((business, index) => {
+      // Get services and format them based on language
+      const services = business.services || [];
+      const serviceNames = services.slice(0, 3).map((s) => s.name?.[language] || s.name?.uz || "");
+      const remainingCount = Math.max(0, services.length - 3);
 
-      // Format distance: show meters if < 1km, otherwise km
-      const distanceValue = Math.round(business.distance * 10) / 10;
-      const distanceText = distanceValue < 1
-        ? `${Math.round(business.distance * 1000)}m`
-        : `${distanceValue}km`;
+      // Format distance using API-provided metric
+      const distanceText = formatDistance(business.distance, business.distance_metric);
+
+      // Use business_id if available, otherwise fallback to business_name or index
+      const businessId = business.business_id || business.business_name || `business-${index}`;
+      const businessName = business.business_name || "Unknown";
 
       return {
-        id: business.id,
-        name: business.business_name,
-        image: business.avatar_url,
-        address: `${distanceText} ${t('home.fromYou')}`,
+        id: businessId,
+        name: businessName,
+        image: business.avatar_url || undefined,
+        address: business.location?.display_address || (distanceText ? `${distanceText} ${t('home.fromYou')}` : ""),
         services: remainingCount > 0
           ? [...serviceNames, `+${remainingCount}`]
           : serviceNames,
         likes: 75,
         rating: 4.5,
-        comments: salonDetail?.reviews.length ?? 12,
-        distance: `${distanceText} ${t('home.fromYou')}`,
-        gallery: salonDetail?.gallery,
-        reviews: salonDetail?.reviews,
-        stylists: salonDetail?.stylists,
+        comments: 12,
+        distance: distanceText ? `${distanceText} ${t('home.fromYou')}` : undefined,
       } satisfies SalonFeedData;
     });
   }, [businesses, language, t]);
@@ -194,6 +254,14 @@ export default function Home() {
     setReviewsSalon(salon);
   };
 
+  // Prefetch salon details on hover for faster navigation
+  const handleSalonHover = (businessId: string) => {
+    queryClient.prefetchQuery({
+      queryKey: ["business", businessId],
+      queryFn: () => getBusinessDetails(businessId),
+    });
+  };
+
   return (
     <AppLayout>
       <div>
@@ -213,7 +281,7 @@ export default function Home() {
         </div>
 
         {/* Services Section */}
-        <div className="px-4">
+        <div className="px-4 mb-4">
           <div
             ref={servicesRef}
             className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2"
@@ -229,15 +297,15 @@ export default function Home() {
           </div>
 
           {/* Scroll indicator dots */}
-          <div className="flex items-center justify-center gap-1.5 pt-3">
+          {/* <div className="flex items-center justify-center gap-1.5 pt-3">
             <span className="size-2 rounded-full bg-stone-800 dark:bg-stone-200" />
             <span className="size-1.5 rounded-full bg-stone-300 dark:bg-stone-600" />
             <span className="size-1.5 rounded-full bg-stone-300 dark:bg-stone-600" />
-          </div>
+          </div> */}
         </div>
 
         {/* Featured Salon Section */}
-        <div className="mt-6 mb-6 bg-gradient-to-br from-stone-100 via-stone-100 to-stone-50 dark:from-stone-800 dark:via-stone-800 dark:to-stone-900 rounded-3xl pt-4 overflow-hidden">
+        {/* <div className="mt-6 mb-6 bg-gradient-to-br from-stone-100 via-stone-100 to-stone-50 dark:from-stone-800 dark:via-stone-800 dark:to-stone-900 rounded-3xl pt-4 overflow-hidden">
           <SectionHeader
             title={t('home.nearestSalons')}
             actionLabel={t('home.viewAll')}
@@ -280,17 +348,44 @@ export default function Home() {
               {t('home.noSalonsNearby')}
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Salon Feed */}
         <div className="flex flex-col">
-          {isLoadingBusinesses ? (
+          {showSkeleton ? (
             <>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="w-full h-[280px] bg-stone-100 animate-pulse"
-                />
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex flex-col p-0 w-full">
+                  {/* Image skeleton */}
+                  <div className="px-2">
+                    <div className="rounded-2xl overflow-hidden w-full">
+                      <div className="h-48 mb-0.5 w-full bg-stone-200 dark:bg-stone-800 animate-pulse" />
+                      <div className="grid grid-cols-4 gap-0.5">
+                        {[1, 2, 3, 4].map((j) => (
+                          <div key={j} className="aspect-square bg-stone-200 dark:bg-stone-800 animate-pulse" />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Info skeleton */}
+                  <div className="grid grid-cols-12 gap-2 px-2 pt-2">
+                    <div className="col-span-8 px-2 py-1">
+                      <div className="h-5 w-32 bg-stone-200 dark:bg-stone-800 rounded animate-pulse mb-2" />
+                      <div className="h-4 w-48 bg-stone-200 dark:bg-stone-800 rounded animate-pulse" />
+                    </div>
+                    <div className="col-span-4 py-1">
+                      <div className="h-10 w-full bg-stone-200 dark:bg-stone-800 rounded-xl animate-pulse" />
+                    </div>
+                  </div>
+                  {/* Action buttons skeleton */}
+                  <div className="pb-8 mt-3">
+                    <div className="px-3 flex items-center gap-2 w-full h-8">
+                      <div className="h-8 w-16 bg-stone-200 dark:bg-stone-800 rounded-full animate-pulse" />
+                      <div className="h-8 w-16 bg-stone-200 dark:bg-stone-800 rounded-full animate-pulse" />
+                      <div className="h-8 w-20 bg-stone-200 dark:bg-stone-800 rounded-full animate-pulse" />
+                    </div>
+                  </div>
+                </div>
               ))}
             </>
           ) : businessError ? (
@@ -304,17 +399,36 @@ export default function Home() {
               </button>
             </div>
           ) : feedSalons.length > 0 ? (
-            feedSalons.map((salon) => (
-              <SalonFeedCard
-                key={salon.id}
-                salon={salon}
-                onClick={() => handleSalonClick(salon)}
-                onBookClick={() => handleBookClick(salon)}
-                onLikeClick={() => console.log(`Like: ${salon.name}`)}
-                onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
-                onReviewsClick={() => handleReviewsClick(salon)}
-              />
-            ))
+            <div>
+              {feedSalons.map((salon) => (
+                <div
+                  key={salon.id}
+                  onMouseEnter={() => handleSalonHover(salon.id)}
+                  onTouchStart={() => handleSalonHover(salon.id)}
+                >
+                  <SalonFeedCard
+                    salon={salon}
+                    onClick={() => handleSalonClick(salon)}
+                    onBookClick={() => handleBookClick(salon)}
+                    onLikeClick={() => console.log(`Like: ${salon.name}`)}
+                    onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
+                    onReviewsClick={() => handleReviewsClick(salon)}
+                  />
+                </div>
+              ))}
+
+              {/* Load more trigger */}
+              <div ref={loadMoreRef} className="py-4">
+                {isFetchingNextPage && (
+                  <div className="flex justify-center">
+                    <div className="flex items-center gap-2">
+                      <div className="size-5 border-2 border-stone-300 border-t-primary rounded-full animate-spin" />
+                      <span className="text-stone-500 text-sm">{t('home.loadingMore')}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="px-4 py-8 text-center text-stone-500 text-sm">
             </div>

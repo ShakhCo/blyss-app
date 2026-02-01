@@ -3,7 +3,6 @@ import { useNavigate, useOutletContext } from "react-router";
 import { backButton, useSignal, viewport } from "@tma.js/sdk-react";
 import { Logo } from "./icons/Logo";
 import { BottomNav } from "./BottomNav";
-import { useLocationStore, selectDisplayName } from "~/stores/location";
 import { useBottomNavStore } from "~/stores/bottomNav";
 import { useScrollRestoration } from "~/hooks/useScrollRestoration";
 import { SafeAreaProvider } from "~/contexts/safe-area";
@@ -33,8 +32,6 @@ export function AppLayout({
 }: PropsWithChildren<AppLayoutProps>) {
   const navigate = useNavigate();
   const { tmaReady } = useOutletContext<TmaContext>() || { tmaReady: false };
-  const { isLoading, error, hasHydrated, fetchLocation } = useLocationStore();
-  const displayName = useLocationStore(selectDisplayName);
   const isBottomNavVisible = useBottomNavStore((state) => state.isVisible);
   const scrollRef = useScrollRestoration();
 
@@ -46,13 +43,6 @@ export function AppLayout({
     left: safeAreaInsets?.left ?? 0,
     right: safeAreaInsets?.right ?? 0,
   };
-
-  // Fetch location after hydration (only if needed - store handles the 1 hour check)
-  // useEffect(() => {
-  //   if (hasHydrated) {
-  //     fetchLocation();
-  //   }
-  // }, [hasHydrated, fetchLocation]);
 
   // Handle Telegram back button
   useEffect(() => {
@@ -70,15 +60,6 @@ export function AppLayout({
     }
     backButton.hide();
   }, [back, onBack, navigate, tmaReady]);
-
-  // Determine location text to display
-  const locationText = !hasHydrated
-    ? "Loading..."
-    : isLoading
-      ? "Fetching location..."
-      : error
-        ? error
-        : displayName;
 
   if (removeHeader) {
     return (

@@ -30,6 +30,11 @@ export interface WorkingHours {
 export interface BusinessLocation {
   lat: number;
   lng: number;
+  display_address?: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  street_name?: string;
 }
 
 export interface BusinessService {
@@ -40,6 +45,25 @@ export interface BusinessService {
   is_active: boolean;
 }
 
+// Service in nearest businesses response (minimal info)
+export interface NearestBusinessService {
+  name?: MultilingualText;
+}
+
+// Business from nearest endpoint
+export interface NearestBusiness {
+  business_id?: string;
+  business_name?: string;
+  business_type?: string;
+  location?: BusinessLocation;
+  working_hours?: WorkingHours | null;
+  avatar_url?: string;
+  distance?: number;
+  distance_metric?: "m" | "km";
+  services?: NearestBusinessService[];
+}
+
+// Full business details
 export interface Business {
   id: string;
   business_name: string;
@@ -68,7 +92,7 @@ export interface Pagination {
 }
 
 export interface NearestBusinessesResponse {
-  data: Business[];
+  data: NearestBusiness[];
   pagination: Pagination;
 }
 
@@ -102,7 +126,7 @@ export async function getNearestBusinesses(
   });
 
   const response = await authFetch(
-    `${API_BASE_URL}/businesses/nearest?${queryParams.toString()}`
+    `${API_BASE_URL}/public/businesses/nearest?${queryParams.toString()}`
   );
 
   if (!response.ok) {
@@ -183,24 +207,29 @@ export function isCurrentlyOpen(workingHours: WorkingHours): boolean {
 // Business Details API
 // ============================================
 
+export interface BusinessDetailsService {
+  id?: string;
+  name?: MultilingualText;
+  description?: MultilingualText;
+  price?: number;
+  duration_minutes?: number;
+}
+
 export interface BusinessDetailsResponse {
-  business: {
-    id: string;
-    name: string;
-    business_type: string;
-    location: BusinessLocation;
-    working_hours: WorkingHours;
-    business_phone_number: string;
-    tenant_url: string;
-    avatar_url?: string;
-    avatar_updated_at?: string;
-  };
-  services: BusinessService[];
+  business_id?: string;
+  business_name?: string;
+  business_location?: BusinessLocation;
+  avatar_url?: string;
+  business_type?: string;
+  working_hours?: WorkingHours | null;
+  business_phone_number?: string;
+  tenant_url?: string;
+  services?: BusinessDetailsService[];
 }
 
 /**
  * Get business details with services
- * GET /public/businesses/:businessId/services
+ * GET /public/businesses/:businessId/details
  */
 export async function getBusinessDetails(
   businessId: string
