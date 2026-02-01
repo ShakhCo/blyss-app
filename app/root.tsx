@@ -15,6 +15,7 @@ import "./app.css";
 import { Logo } from "./components/icons/Logo";
 import { AuthGuard } from "./components/auth-guard";
 import { queryClient } from "~/lib/query-client";
+import { useUserStore } from "~/stores/user";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -62,7 +63,8 @@ export interface TmaContext {
 
 export default function App() {
   const [tmaReady, setTmaReady] = useState(false);
-  const [user, setUser] = useState<TmaUser | null>(null);
+  const user = useUserStore((state) => state.user);
+  const setUser = useUserStore((state) => state.setUser);
 
   useEffect(() => {
     // Initialize Eruda console for debugging
@@ -104,7 +106,7 @@ export default function App() {
           swipeBehavior.disableVertical();
         }
 
-        // Retrieve user data
+        // Retrieve user data and store in zustand
         const params = retrieveLaunchParams();
         const tgUser = params?.tgWebAppData?.user;
         if (tgUser) {
@@ -122,7 +124,7 @@ export default function App() {
       }
       setTmaReady(true);
     });
-  }, []);
+  }, [setUser]);
 
   // Show loading state until TMA is initialized
   if (!tmaReady) {

@@ -8,6 +8,7 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const fetchLocation = useLocationStore((state) => state.fetchLocation);
+  const fetchIpLocation = useLocationStore((state) => state.fetchIpLocation);
   const [isHydrated, setIsHydrated] = useState(false);
   const hasFetchedLocationRef = useRef(false);
 
@@ -16,7 +17,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
     setIsHydrated(true);
   }, []);
 
-  // Fetch user location for all visitors
+  // Fetch IP location once on page load (for analytics)
+  useEffect(() => {
+    if (!isHydrated) return;
+    fetchIpLocation();
+  }, [isHydrated, fetchIpLocation]);
+
+  // Fetch precise user location for all visitors
   useEffect(() => {
     if (!isHydrated || hasFetchedLocationRef.current) return;
 
