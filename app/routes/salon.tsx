@@ -7,13 +7,16 @@ import type { Route } from "./+types/salon";
 import { bottomNav } from "~/stores/bottomNav";
 import { bookingUI } from "~/stores/booking";
 import { Star, Clock } from "lucide-react";
-import { getBusinessDetails, type BusinessDetailsResponse } from "~/lib/business-api";
+import { getBusinessDetails, type BusinessDetailsResponse, type WorkingHours } from "~/lib/business-api";
+import { Logo } from "~/components/icons/Logo";
+import { useSafeAreaValues } from "~/hooks/useSafeAreaValues";
+import { useI18nStore } from "~/stores/i18n-store";
 
 // Mock salon data - shared across all salon routes
 export const salonsData: Record<string, {
   id: string;
   name: string;
-  image: string;
+  image?: string;
   gallery: string[];
   rating: number;
   reviewCount: string;
@@ -287,11 +290,11 @@ export const salonsData: Record<string, {
 
 type TabType = "services" | "gallery" | "reviews" | "about";
 
-const tabs: { id: TabType; label: string; path: string }[] = [
-  { id: "services", label: "Xizmatlar", path: "" },
-  { id: "gallery", label: "Galereya", path: "gallery" },
-  { id: "reviews", label: "Sharhlar", path: "reviews" },
-  { id: "about", label: "Haqida", path: "about" },
+const tabIds: { id: TabType; path: string }[] = [
+  { id: "services", path: "" },
+  { id: "gallery", path: "gallery" },
+  { id: "reviews", path: "reviews" },
+  { id: "about", path: "about" },
 ];
 
 export function meta({ }: Route.MetaArgs) {
@@ -303,7 +306,7 @@ export function meta({ }: Route.MetaArgs) {
 
 // Get tab index for animation direction
 const getTabIndex = (tabId: TabType): number => {
-  return tabs.findIndex(t => t.id === tabId);
+  return tabIds.findIndex(t => t.id === tabId);
 };
 
 export default function SalonLayout() {
@@ -312,8 +315,15 @@ export default function SalonLayout() {
   const location = useLocation();
   const [swipeDirection, setSwipeDirection] = useState<1 | -1>(1);
   const previousTabRef = useRef<TabType>("services");
-  const [infoOpacity, setInfoOpacity] = useState(1);
-  const [showHeroName, setShowHeroName] = useState(false);
+  const { t, language } = useI18nStore();
+
+  const { safeAreaValue, contentAreaValue } = useSafeAreaValues();
+
+  // Build tabs with translated labels
+  const tabs = tabIds.map(tab => ({
+    ...tab,
+    label: t(`salon.tabs.${tab.id}` as any),
+  }));
 
   // Fetch business details using React Query
   const { data: businessData, isLoading, error } = useQuery({
@@ -353,43 +363,60 @@ export default function SalonLayout() {
     };
   }, []);
 
-  // Scroll-based opacity for Gallery Grid and Salon Info (hook must be called before conditional returns)
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
-      // Fade out info before showing hero name overlay
-      const fadeDistance = 48;
-      const opacity = Math.max(0, 1 - scrollY / fadeDistance);
-      setInfoOpacity(opacity);
 
-      // Show hero name when scrolled past 48px
-      setShowHeroName(scrollY >= 48);
-    };
+  // Helper to convert seconds to 24-hour time format (e.g., 32400 -> "09:00")
+  const secondsTo24Hour = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+  };
 
-    // Calculate initial state on mount
-    handleScroll();
+  // Day name mapping from English to translation keys
+  const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+  const getDayName = (day: string): string => t(`day.${day}` as any);
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  // Transform working hours from API format to weeklyHours format
+  const transformWorkingHours = (workingHours: WorkingHours) => {
+    const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+    return dayOrder.map(day => {
+      const dayHours = workingHours[day];
+      return {
+        day: getDayName(day),
+        hours: dayHours.is_open
+          ? `${secondsTo24Hour(dayHours.start)} - ${secondsTo24Hour(dayHours.end)}`
+          : t('salon.closed'),
+        isOpen: dayHours.is_open,
+      };
+    });
+  };
+
+  // Get today's working hours string
+  const getTodayWorkingHours = (workingHours: WorkingHours): string => {
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+    const today = new Date();
+    const currentDay = dayNames[today.getDay()];
+    const dayHours = workingHours[currentDay];
+    if (!dayHours.is_open) return t('salon.closed');
+    return `${secondsTo24Hour(dayHours.start)} - ${secondsTo24Hour(dayHours.end)}`;
+  };
 
   // Transform API data to match the expected salon format
   const salon = businessData ? {
     id: businessData.business.id,
     name: businessData.business.name,
-    image: "https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile",
+    image: businessData.business.avatar_url,
     gallery: [],
     rating: 4.5,
     reviewCount: "1.2k",
-    address: "Toshkent",
+    address: "Toshkent", // TODO: Add address to API response
     phone: businessData.business.business_phone_number,
-    workingHours: "09:00 - 21:00",
-    weeklyHours: [],
-    description: "",
+    workingHours: getTodayWorkingHours(businessData.business.working_hours),
+    weeklyHours: transformWorkingHours(businessData.business.working_hours),
+    description: "", // TODO: Add description to API response
     services: businessData.services.map(s => ({
       id: s.id,
-      name: s.name,
-      duration: `${s.duration_minutes} daqiqa`,
+      name: s.name[language] || s.name.uz,
+      duration: `${s.duration_minutes} ${t('common.minutes')}`,
       price: s.price.toLocaleString(),
       category: "General",
     })),
@@ -448,12 +475,12 @@ export default function SalonLayout() {
       <AppLayout back removeHeader>
         <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900 flex items-center justify-center p-4">
           <div className="text-center">
-            <p className="text-red-500 mb-2">Xatolik yuz berdi</p>
+            <p className="text-red-500 mb-2">{t('salon.error')}</p>
             <button
               onClick={() => navigate("/")}
               className="text-primary text-sm font-medium"
             >
-              Bosh sahifaga qaytish
+              {t('salon.backToHome')}
             </button>
           </div>
         </div>
@@ -475,35 +502,35 @@ export default function SalonLayout() {
     <AppLayout back removeHeader>
       <div className="max-w-lg mx-auto min-h-screen bg-white dark:bg-stone-900">
 
-        {/* Hero Section with Image */}
-        <div className="h-48 sticky top-0 z-20 relative">
-          <img
-            src={salon.image}
-            alt={salon.name}
-            className="w-full h-full object-cover"
-          />
+        {/* Hero Section with Image - sticky, stops when name reaches safe area */}
+        <div
+          className="h-64 relative sticky z-20"
+          style={{ top: `calc(${safeAreaValue.top + contentAreaValue.top + 23}px - 12rem)` }}
+        >
+          {salon.image ? (
+            <img
+              src={salon.image}
+              alt={salon.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+              <Logo width={100} height={100} />
+            </div>
+          )}
           {/* Gradient overlay for text readability */}
-          <div
-            className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent transition-opacity duration-300"
-            style={{ opacity: showHeroName ? 1 : 0 }}
-          />
-          {/* Salon name overlay */}
-          <div
-            className="absolute bottom-3 left-4 right-4 transition-all duration-300 origin-bottom-left"
-            style={{
-              opacity: showHeroName ? 1 : 0,
-              transform: showHeroName ? "translateY(0) scale(1)" : "translateY(8px) scale(0.95)",
-            }}
-          >
-            <h2 className="text-xl font-bold text-white mb-1">{salon.name}</h2>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          {/* Salon name overlay - always visible */}
+          <div className="absolute bottom-4 left-4 right-4">
+            <h1 className="text-2xl font-bold text-white mb-2">{salon.name}</h1>
+            {/* Glassy badges for rating and status */}
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30">
                 <Star size={14} className="fill-yellow-400 text-yellow-400" />
                 <span className="text-white font-medium text-sm">{salon.rating}</span>
-                <span className="text-white/70 text-sm">({salon.reviewCount})</span>
+                <span className="text-white/80 text-sm">({salon.reviewCount})</span>
               </div>
-              <span className="text-white/50">•</span>
-              <div className="flex items-center gap-1 text-white/80 text-sm">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white text-sm">
                 <Clock size={14} />
                 <span>{salon.workingHours}</span>
               </div>
@@ -511,33 +538,11 @@ export default function SalonLayout() {
           </div>
         </div>
 
-        {/* Salon Info */}
+        {/* Tabs - sticky below the name area */}
         <div
-          className="px-4 py-3 bg-white dark:bg-stone-900 relative z-10 origin-top"
-          style={{
-            opacity: infoOpacity,
-            transform: `scale(${0.9 + infoOpacity * 0.1})`,
-          }}
+          className="sticky z-30 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800"
+          style={{ top: `calc(${safeAreaValue.top + contentAreaValue.top + 23}px + 4rem)` }}
         >
-          <h1 className="text-xl font-bold text-stone-900 dark:text-white mb-1">
-            {salon.name}
-          </h1>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <Star size={14} className="fill-yellow-400 text-yellow-400" />
-              <span className="text-stone-900 dark:text-white font-medium text-sm">{salon.rating}</span>
-              <span className="text-stone-500 dark:text-stone-400 text-sm">({salon.reviewCount})</span>
-            </div>
-            <span className="text-stone-300 dark:text-stone-600">•</span>
-            <div className="flex items-center gap-1 text-stone-600 dark:text-stone-400 text-sm">
-              <Clock size={14} />
-              <span>{salon.workingHours}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="sticky top-48 z-40 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
           <div className="flex">
             {tabs.map((tab) => (
               <button
@@ -563,7 +568,7 @@ export default function SalonLayout() {
         </div>
 
         {/* Tab Content - rendered via Outlet with animation */}
-        <div className="pb-6 overflow-hidden">
+        <div className="pb-64">
           <AnimatePresence initial={false} mode="popLayout" custom={swipeDirection}>
             <motion.div
               key={activeTab}

@@ -83,8 +83,10 @@ export function AppLayout({
   if (removeHeader) {
     return (
       <SafeAreaProvider value={safeAreaValue}>
-        <div>
-          {children}
+        <div className="h-screen flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
           <BottomNav />
         </div>
       </SafeAreaProvider>

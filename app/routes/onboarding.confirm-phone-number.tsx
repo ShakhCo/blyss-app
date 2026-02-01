@@ -4,6 +4,7 @@ import { hapticFeedback, popup, useLaunchParams } from "@tma.js/sdk-react";
 import { verifyOtp, sendOtp, login, registerUser } from "~/lib/api-client";
 import { useOnboardingStore } from "~/stores/onboarding-store";
 import { useUserStore } from "~/stores/user-store";
+import { useI18nStore } from "~/stores/i18n-store";
 import { SafeAreaLayout } from "~/components/SafeAreaLayout";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "~/components/Button";
@@ -20,17 +21,6 @@ function triggerSuccessHaptic() {
   }
 }
 
-function showErrorPopup(message: string) {
-  triggerErrorHaptic();
-  if (popup.show.isAvailable()) {
-    popup.show({
-      title: "Xatolik",
-      message,
-      buttons: [{ id: "ok", type: "ok" }],
-    });
-  }
-}
-
 export function meta() {
   return [{ title: "Tasdiqlash - BLYSS" }];
 }
@@ -39,6 +29,8 @@ export default function OnboardingConfirmPhoneNumber() {
   const navigate = useNavigate();
   const { data, setData } = useOnboardingStore();
   const { setUser, setTokens } = useUserStore();
+  const access_token = useUserStore((state) => state.access_token);
+  const { t } = useI18nStore();
   const launchParams = useLaunchParams();
 
   // Get Telegram user data for pre-filling
@@ -48,7 +40,6 @@ export default function OnboardingConfirmPhoneNumber() {
   const initialLastName = typeof tgUser?.last_name === "string" ? tgUser.last_name : "";
 
   const [otp, setOtp] = useState("");
-  const [isSuccess, setIsSuccess] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(60);
   const [isResending, setIsResending] = useState(false);
@@ -64,6 +55,17 @@ export default function OnboardingConfirmPhoneNumber() {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   // Store phone number locally to prevent loss if onboarding store is cleared
   const phoneNumberRef = useRef<string | null>(data?.phone_number ?? null);
+
+  const showErrorPopup = useCallback((message: string) => {
+    triggerErrorHaptic();
+    if (popup.show.isAvailable()) {
+      popup.show({
+        title: t('error.title'),
+        message,
+        buttons: [{ id: "ok", type: "ok" }],
+      });
+    }
+  }, [t]);
 
   // Update phone number ref when data changes
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function OnboardingConfirmPhoneNumber() {
 
   // Auto-focus first input on mount
   useEffect(() => {
-    if (!isLoggingIn && !isSuccess && !showRegister) {
+    if (!isLoggingIn && !showRegister) {
       setTimeout(() => {
         inputRefs.current[0]?.focus();
       }, 100);
@@ -142,57 +144,51 @@ export default function OnboardingConfirmPhoneNumber() {
       return;
     }
 
-    // OTP verified successfully - show success animation first
-    setIsSuccess(true);
+    // OTP verified successfully - show loading and try to login immediately
     triggerSuccessHaptic();
+    setIsLoggingIn(true);
 
-    // Wait for success animation to complete, then show loading and try to login
-    setTimeout(async () => {
-      // Hide success, show loading
-      setIsSuccess(false);
-      setIsLoggingIn(true);
+    // Step 2: Try to login with the otp_id
+    const loginResult = await login({
+      otp_id,
+      phone_number: phoneNumber,
+      user_type: "user",
+    });
 
-      // Step 2: Try to login with the otp_id
-      const loginResult = await login({
-        otp_id,
-        phone_number: phoneNumber,
-        user_type: "user",
-      });
-
-      if (loginResult.error) {
-        setIsLoggingIn(false);
-        // If user not found, show register form inline
-        if (loginResult.error.error_code === "USER_NOT_FOUND") {
-          savedOtpIdRef.current = otp_id;
-          setShowRegister(true);
-          isVerifyingRef.current = false;
-          return;
-        }
-
-        const errorMessage = loginResult.error.error || "Loginda xatolik";
-        showErrorPopup(errorMessage);
-        // Clear input first, then shake and refocus
-        setOtp("");
+    if (loginResult.error) {
+      setIsLoggingIn(false);
+      // If user not found, show register form inline
+      if (loginResult.error.error_code === "USER_NOT_FOUND") {
+        savedOtpIdRef.current = otp_id;
+        setShowRegister(true);
         isVerifyingRef.current = false;
-        setTimeout(() => {
-          triggerShakeOnly();
-          // Re-focus first input after clearing
-          inputRefs.current[0]?.focus();
-        }, 50);
         return;
       }
 
-      // Step 3: Login successful - save user and tokens
-      if (loginResult.data) {
-        const { user, access_token, refresh_token, expires_at } = loginResult.data;
+      const errorMessage = loginResult.error.error || t('error.loginError');
+      showErrorPopup(errorMessage);
+      // Clear input first, then shake and refocus
+      setOtp("");
+      isVerifyingRef.current = false;
+      setTimeout(() => {
+        triggerShakeOnly();
+        // Re-focus first input after clearing
+        inputRefs.current[0]?.focus();
+      }, 50);
+      return;
+    }
 
-        setUser(user);
-        setTokens(access_token, refresh_token, expires_at);
+    // Step 3: Login successful - save user and tokens
+    // NOTE: Keep isLoggingIn=true, never set it to false after successful login
+    if (loginResult.data) {
+      const { user, access_token, refresh_token, expires_at } = loginResult.data;
 
-        // Navigate to home
-        navigate("/", { replace: true });
-      }
-    }, 800); // Wait 800ms to show the success animation before trying to login
+      setUser(user);
+      setTokens(access_token, refresh_token, expires_at);
+
+      // Navigate to home
+      navigate("/", { replace: true });
+    }
   };
 
   const handleRegister = useCallback(async () => {
@@ -219,7 +215,7 @@ export default function OnboardingConfirmPhoneNumber() {
       });
 
       if (registerResult.error) {
-        showErrorPopup(registerResult.error.error || "Ro'yxatdan o'tishda xatolik");
+        showErrorPopup(registerResult.error.error || t('error.registerError'));
         setIsRegistering(false);
         return;
       }
@@ -232,12 +228,13 @@ export default function OnboardingConfirmPhoneNumber() {
       });
 
       if (loginResult.error) {
-        showErrorPopup(loginResult.error.error || "Login qilishda xatolik");
+        showErrorPopup(loginResult.error.error || t('error.loginError'));
         setIsRegistering(false);
         return;
       }
 
       // Step 3: Save user and tokens, navigate to home
+      // NOTE: Keep isRegistering=true on success, never set it to false
       if (loginResult.data) {
         const { user, access_token, refresh_token, expires_at } = loginResult.data;
 
@@ -252,13 +249,14 @@ export default function OnboardingConfirmPhoneNumber() {
         });
 
         navigate("/", { replace: true });
+        return; // Don't reset isRegistering on success
       }
     } catch (err) {
-      showErrorPopup(err instanceof Error ? err.message : "Xatolik yuz berdi");
-    } finally {
-      setIsRegistering(false);
+      showErrorPopup(err instanceof Error ? err.message : t('error.unknownError'));
     }
-  }, [firstName, lastName, isRegistering, setData, navigate, setUser, setTokens, telegramId, triggerRegisterShakeOnly]);
+    // Only reset isRegistering on error/failure
+    setIsRegistering(false);
+  }, [firstName, lastName, isRegistering, setData, navigate, setUser, setTokens, telegramId, triggerRegisterShakeOnly, showErrorPopup, t]);
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -290,7 +288,7 @@ export default function OnboardingConfirmPhoneNumber() {
       });
 
       if (result.error) {
-        showErrorPopup(result.error.error || "Kod yuborishda xatolik");
+        showErrorPopup(result.error.error || t('error.sendCodeError'));
       } else {
         setResendCountdown(60);
         triggerSuccessHaptic();
@@ -300,7 +298,7 @@ export default function OnboardingConfirmPhoneNumber() {
         }, 100);
       }
     } catch (err) {
-      showErrorPopup("Kod yuborishda xatolik");
+      showErrorPopup(t('error.sendCodeError'));
     } finally {
       setIsResending(false);
     }
@@ -321,8 +319,8 @@ export default function OnboardingConfirmPhoneNumber() {
     return `+${p}`;
   };
 
-  // Don't render if no data and no phone number (unless showing success animation)
-  if (!data && !phoneNumberRef.current && !isSuccess) {
+  // Don't render if no data and no phone number
+  if (!data && !phoneNumberRef.current) {
     return null;
   }
 
@@ -330,18 +328,18 @@ export default function OnboardingConfirmPhoneNumber() {
     <SafeAreaLayout
       back
       onBack={showRegister ? handleBackToOtp : undefined}
-      className="h-screen overflow-hidden"
+      title="Confirm"
     >
       <div className="flex flex-col h-full overflow-hidden">
         {/* Title and subtitle */}
-        <div className="px-4 mb-6 pt-4">
+        <div className="px-4 mb-6 pt-2">
           {showRegister ? (
             <>
               <h1 className="text-2xl font-semibold text-stone-900">
-                Ro'yxatdan o'tish
+                {t('register.title')}
               </h1>
-              <p className="text-stone-500 mt-2 text-base">
-                Ismingiz va familiyangizni kiriting
+              <p className="text-stone-500 mt-1 text-base">
+                {t('register.subtitle')}
               </p>
             </>
           ) : (
@@ -349,8 +347,8 @@ export default function OnboardingConfirmPhoneNumber() {
               <h1 className="text-2xl font-semibold text-stone-900">
                 {formatPhone(phoneNumberRef.current || "")}
               </h1>
-              <p className="text-stone-500 mt-2 text-base">
-                Shu raqamga tasdiqlash kodi yuborildi
+              <p className="text-stone-500 mt-1 text-base">
+                {t('confirm.subtitle')}
               </p>
             </>
           )}
@@ -367,7 +365,7 @@ export default function OnboardingConfirmPhoneNumber() {
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="Ismingiz"
+                  placeholder={t('register.firstName')}
                   className="w-full px-5 py-3.5 bg-stone-100 rounded-xl outline-none placeholder:text-stone-400 text-lg"
                 />
 
@@ -376,16 +374,16 @@ export default function OnboardingConfirmPhoneNumber() {
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Familiyangiz (ixtiyoriy)"
+                  placeholder={t('register.lastName')}
                   className="w-full px-5 py-3.5 bg-stone-100 rounded-xl outline-none placeholder:text-stone-400 text-lg"
                 />
               </div>
             </div>
-          ) : isLoggingIn ? (
-            // Show loading state with "please wait" text
+          ) : isLoggingIn || access_token ? (
+            // Show loading if logging in OR if we already have a token (component remounted after login)
             <div className="flex flex-col items-center justify-center h-full py-12">
               <div className="size-8 border-3 border-stone-200 border-t-primary rounded-full animate-spin mb-4" />
-              <p className="text-stone-500 text-sm">Iltimos, kuting...</p>
+              <p className="text-stone-500 text-sm">{t('confirm.pleaseWait')}</p>
             </div>
           ) : (
             // Custom OTP inputs
@@ -456,24 +454,23 @@ export default function OnboardingConfirmPhoneNumber() {
                       onBlur={() => {
                         setFocusedIndex(null);
                       }}
-                      disabled={isSuccess}
                       className={`w-full h-14 text-center text-2xl font-bold outline-none transition-all duration-200 rounded-xl
-                        ${isSuccess
-                          ? 'bg-green-100 ring-2 ring-green-500 text-green-700'
-                          : isFocused
-                            ? 'bg-white ring-2 ring-primary shadow-sm scale-105'
-                            : 'bg-stone-100'
-                        } text-stone-900 placeholder:text-stone-300 disabled:cursor-default`}
+                        ${isFocused
+                          ? 'bg-white ring-2 ring-primary shadow-sm scale-105'
+                          : 'bg-stone-100'
+                        } text-stone-900 placeholder:text-stone-300`}
                     />
                   );
                 })}
               </div>
 
               {/* Resend hint */}
-              {!isLoggingIn && !isSuccess && (
+              {!isLoggingIn && (
                 <p className="text-stone-400 text-base mt-2">
                   {resendCountdown > 0 ? (
-                    <span key="countdown" className="text-stone-500 font-normal">Kodni qayta yuborish: {resendCountdown}s</span>
+                    <span key="countdown" className="text-stone-500 font-normal">
+                      {t('confirm.resendCode', { countdown: resendCountdown })}
+                    </span>
                   ) : (
                     <button
                       key="resend-btn"
@@ -482,7 +479,7 @@ export default function OnboardingConfirmPhoneNumber() {
                       disabled={isResending}
                       className="text-primary text-sm font-medium disabled:opacity-50"
                     >
-                      {isResending ? "Yuborilmoqda..." : "Qayta yuborish uchun bosing"}
+                      {isResending ? t('confirm.sending') : t('confirm.resendButton')}
                     </button>
                   )}
                 </p>
@@ -497,7 +494,7 @@ export default function OnboardingConfirmPhoneNumber() {
             <Button onClick={handleBackToOtp} border="full"
               disabled={isRegistering} color="secondary" size="lg">
               <ArrowLeft size={22} />
-              Orqaga
+              {t('register.back')}
             </Button>
             <Button
               onClick={handleRegister} disabled={isRegistering}
@@ -506,7 +503,7 @@ export default function OnboardingConfirmPhoneNumber() {
                 <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  Davom etish
+                  {t('register.continue')}
                   <ArrowRight size={22} />
                 </>
               )}

@@ -4,14 +4,10 @@ import { hapticFeedback, popup } from "@tma.js/sdk-react";
 import { ArrowRight } from "lucide-react";
 import { sendOtp } from "~/lib/api-client";
 import { useOnboardingStore } from "~/stores/onboarding-store";
+import { useI18nStore } from "~/stores/i18n-store";
 import { SafeAreaLayout } from "~/components/SafeAreaLayout";
 import { Button } from "~/components/Button";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  VALIDATION_ERROR: "Telefon raqam noto'g'ri",
-  RATE_LIMIT_EXCEEDED: "Juda ko'p urinish, iltimos keyinroq urinib ko'ring",
-  INTERNAL_ERROR: "Serverda xatolik yuz berdi",
-};
+import { LanguageSelector } from "~/components/LanguageSelector";
 
 function triggerErrorHaptic() {
   if (hapticFeedback.notificationOccurred.isAvailable()) {
@@ -19,11 +15,11 @@ function triggerErrorHaptic() {
   }
 }
 
-function showErrorPopup(message: string) {
+function showErrorPopup(message: string, title: string) {
   triggerErrorHaptic();
   if (popup.show.isAvailable()) {
     popup.show({
-      title: "Xatolik",
+      title,
       message,
       buttons: [{ id: "ok", type: "ok" }],
     });
@@ -37,6 +33,7 @@ export function meta() {
 export default function Login() {
   const navigate = useNavigate();
   const { data, setData } = useOnboardingStore();
+  const { t } = useI18nStore();
 
   // Pre-fill phone number from store (e.g., when returning from register page)
   const [phoneNumber, setPhoneNumber] = useState(() => {
@@ -84,8 +81,9 @@ export default function Login() {
       });
 
       if (result.error) {
-        const errorMessage = ERROR_MESSAGES[result.error.error_code] || result.error.error || "Kirishda xatolik";
-        showErrorPopup(errorMessage);
+        const errorKey = `error.${result.error.error_code?.toLowerCase() || 'loginError'}`;
+        const errorMessage = t(errorKey) || t('error.loginError');
+        showErrorPopup(errorMessage, t('error.title'));
         setIsLoading(false);
         return;
       }
@@ -96,22 +94,27 @@ export default function Login() {
         navigate("/onboarding/confirm-phone-number");
       }
     } catch (err) {
-      showErrorPopup(err instanceof Error ? err.message : "Xatolik yuz berdi");
+      showErrorPopup(err instanceof Error ? err.message : t('error.unknownError'), t('error.title'));
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, isLoading, navigate, setData, triggerShakeOnly]);
+  }, [phoneNumber, isLoading, navigate, setData, triggerShakeOnly, t]);
 
   return (
-    <SafeAreaLayout className="h-screen">
-      <div className="flex flex-col flex-1">
+    <SafeAreaLayout>
+      <div className="flex flex-col flex-1 h-full">
+        {/* Language Selector */}
+        <div className="px-4 my-2 flex justify-end">
+          <LanguageSelector />
+        </div>
+
         {/* Title and subtitle */}
-        <div className="px-4 mb-6 pt-4">
+        <div className="px-4 mb-6 pt-2">
           <h1 className="text-2xl font-semibold text-stone-900">
-            Xush kelibsiz
+            {t('login.title')}
           </h1>
-          <p className="text-stone-500 mt-2 text-base">
-            Telefon raqamingizni kiriting
+          <p className="text-stone-500 mt-1 text-base">
+            {t('login.subtitle')}
           </p>
         </div>
 
@@ -121,7 +124,7 @@ export default function Login() {
           <div className={`relative ${shake ? "animate-shake" : ""}`}>
             <div className="flex items-center bg-stone-100 rounded-xl overflow-hidden">
               <div className="flex items-center pl-4 pr-3 border-r border-stone-300 h-14">
-                <span className="text-stone-900 font-medium text-base">+998</span>
+                <span className="text-stone-900 font-medium text-base">{t('login.countryCode')}</span>
               </div>
               <input
                 type="tel"
@@ -132,7 +135,7 @@ export default function Login() {
                     setPhoneNumber(value);
                   }
                 }}
-                placeholder="90 123 45 67"
+                placeholder={t('login.phonePlaceholder')}
                 className="flex-1 px-4 py-3 bg-transparent text-base outline-none placeholder:text-stone-400"
                 inputMode="numeric"
               />
@@ -147,7 +150,7 @@ export default function Login() {
                 <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  Davom etish
+                  {t('login.continue')}
                   <ArrowRight size={18} />
                 </>
               )}

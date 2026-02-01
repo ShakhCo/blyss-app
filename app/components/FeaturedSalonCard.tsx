@@ -2,11 +2,12 @@ import { Avatar, Card } from "@heroui/react";
 import { HeartIcon } from "./icons/HeartIcon";
 import { StarIcon } from "./icons/StarIcon";
 import { Navigation, Star } from "lucide-react";
+import { Logo } from "./icons/Logo";
 
 export interface FeaturedSalon {
   id: string;
   name: string;
-  image: string;
+  image?: string;
   services: string[];
   address: string;
   rating: number;
@@ -29,11 +30,17 @@ export function FeaturedSalonCard({ salon, onFavoriteToggle, onClick }: Featured
         className="w-full text-left"
       >
         <div className="relative">
-          <img
-            src={salon.image}
-            alt={salon.name}
-            className="w-full h-[194px] object-cover rounded-xl"
-          />
+          {salon.image ? (
+            <img
+              src={salon.image}
+              alt={salon.name}
+              className="w-full h-[194px] object-cover rounded-xl"
+            />
+          ) : (
+            <div className="w-full h-[194px] rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+              <Logo width={80} height={80} />
+            </div>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -50,9 +57,13 @@ export function FeaturedSalonCard({ salon, onFavoriteToggle, onClick }: Featured
         </div>
 
         <div className="pt-3 px-2 pb-1 space-y-1 overflow-hidden rounded-b-2xl ">
-          <p className="text-xs text-primary tracking-wide">
-            {salon.services.join(" . ")}
-          </p>
+          <div className="flex items-center text-xs text-primary tracking-wide">
+            <span className="truncate">
+              {salon.services.slice(0, -1).join(" · ")}
+            </span>
+            {salon.services.length > 1 && <span className="mx-1">·</span>}
+            <span className="shrink-0">{salon.services[salon.services.length - 1]}</span>
+          </div>
           <h3 className="font-bold text-base text-[#111111] dark:text-stone-100">
             {salon.name}
           </h3>

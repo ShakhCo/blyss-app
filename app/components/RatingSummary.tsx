@@ -1,4 +1,5 @@
 import { Star } from "lucide-react";
+import { useI18nStore } from "~/stores/i18n-store";
 
 interface RatingDistribution {
   rating: number;
@@ -24,6 +25,8 @@ export function RatingSummary({
   reviewCount,
   distribution = defaultDistribution,
 }: RatingSummaryProps) {
+  const { t } = useI18nStore();
+
   return (
     <div className="pt-2 flex items-center gap-4">
       <div className="text-center">
@@ -44,7 +47,7 @@ export function RatingSummary({
           ))}
         </div>
         <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
-          {reviewCount} ta sharh
+          {t('reviews.count', { count: reviewCount })}
         </p>
       </div>
 

@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router";
 import { motion } from "framer-motion";
 import { SlidePanel } from "~/components/SlidePanel";
+import { useI18nStore } from "~/stores/i18n-store";
 import type { SalonContext } from "./salon";
 
 export default function SalonGallery() {
   const { salon } = useOutletContext<SalonContext>();
+  const { t } = useI18nStore();
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [dragX, setDragX] = useState(0);
   const startXRef = useRef(0);
@@ -150,7 +152,7 @@ export default function SalonGallery() {
         {/* Empty state */}
         {images.length === 0 && (
           <div className="py-12 text-center text-stone-500 dark:text-stone-400">
-            Rasmlar yo'q
+            {t('salon.noImages')}
           </div>
         )}
       </div>

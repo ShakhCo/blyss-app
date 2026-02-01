@@ -6,6 +6,11 @@ const API_BASE_URL = "https://api.blyss.uz";
 // Types
 // ============================================
 
+export interface MultilingualText {
+  uz: string;
+  ru: string;
+}
+
 export interface DayWorkingHours {
   start: number; // seconds from midnight (e.g., 32400 = 9:00 AM)
   end: number; // seconds from midnight (e.g., 72000 = 8:00 PM)
@@ -29,7 +34,7 @@ export interface BusinessLocation {
 
 export interface BusinessService {
   id: string;
-  name: string;
+  name: MultilingualText;
   price: number;
   duration_minutes: number;
   is_active: boolean;
@@ -47,6 +52,8 @@ export interface Business {
   tenant_url: string;
   employee_invite_token: string;
   date_created: string;
+  avatar_url?: string;
+  avatar_updated_at?: string;
   distance: number; // in km
   services: BusinessService[];
 }
@@ -185,6 +192,8 @@ export interface BusinessDetailsResponse {
     working_hours: WorkingHours;
     business_phone_number: string;
     tenant_url: string;
+    avatar_url?: string;
+    avatar_updated_at?: string;
   };
   services: BusinessService[];
 }

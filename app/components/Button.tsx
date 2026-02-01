@@ -6,7 +6,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   /** Size variant */
   size?: 'sm' | 'default' | 'lg';
   /** Color variant */
-  color?: 'primary' | 'danger' | 'secondary';
+  color?: 'primary' | 'soft-primary' | 'danger' | 'secondary';
   /** Border radius variant */
   border?: 'sm' | 'default' | 'lg' | 'xl' | 'full';
   /** Shadow variant */
@@ -31,6 +31,11 @@ const colorStyles = {
   primary: {
     solid: 'bg-primary text-white hover:bg-primary/90 active:bg-primary/80',
     outline: 'bg-transparent text-primary border-2 border-primary hover:bg-primary/10',
+    ghost: 'bg-transparent text-primary hover:bg-primary/10',
+  },
+  'soft-primary': {
+    solid: 'bg-primary/15 text-primary hover:bg-primary/25 active:bg-primary/30',
+    outline: 'bg-transparent text-primary border-2 border-primary/30 hover:bg-primary/10',
     ghost: 'bg-transparent text-primary hover:bg-primary/10',
   },
   danger: {

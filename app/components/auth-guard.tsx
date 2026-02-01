@@ -78,11 +78,17 @@ export function AuthGuard({ children }: AuthGuardProps) {
     const hasValidToken = isAuthenticated(access_token) && !isTokenExpired(expires_at);
 
     if (!hasValidToken && !isPublicRoute) {
-      navigate("/onboarding/introduction", { replace: true });
+      navigate("/login", { replace: true });
     }
   }, [access_token, expires_at, isPublicRoute, navigate, isHydrated, isValidating]);
 
-  // Show loading screen while hydrating or validating
+  // Allow public routes to handle their own loading state (even during validation)
+  // This prevents the AuthGuard loading screen from flashing on login/onboarding pages
+  if (isPublicRoute && isHydrated) {
+    return <>{children}</>;
+  }
+
+  // Show loading screen while hydrating or validating (only for protected routes)
   if (!isHydrated || (access_token && !hasValidatedRef.current)) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-between py-10">
@@ -97,11 +103,6 @@ export function AuthGuard({ children }: AuthGuardProps) {
         </div>
       </div>
     );
-  }
-
-  // Allow public routes regardless of auth state
-  if (isPublicRoute) {
-    return <>{children}</>;
   }
 
   // Block unauthenticated users from protected routes

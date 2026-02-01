@@ -34,7 +34,7 @@ export default function Logout() {
 
       // Redirect to introduction after a short delay
       setTimeout(() => {
-        navigate("/onboarding/introduction", { replace: true });
+        navigate("/login", { replace: true });
       }, 500);
     };
 

@@ -1,11 +1,13 @@
 import { Button } from "@heroui/react";
 import { ChevronRight, MessageCircle, Navigation, Star } from "lucide-react";
 import type { Review, Stylist } from "~/components/ReviewCard";
+import { Logo } from "./icons/Logo";
+import { useI18nStore } from "~/stores/i18n-store";
 
 export interface SalonFeedData {
   id: string;
   name: string;
-  image: string;
+  image?: string;
   address: string;
   likes?: number;
   comments?: number;
@@ -34,36 +36,40 @@ export function SalonFeedCard({
   onNavigateClick,
   onReviewsClick,
 }: SalonFeedCardProps) {
-  const galleryImages = salon.gallery ?? [
-    salon.image,
-    salon.image,
-    salon.image,
-    salon.image,
-  ];
+  const { t } = useI18nStore();
+  const galleryImages = salon.gallery ?? (salon.image ? [salon.image, salon.image, salon.image, salon.image] : []);
 
   return (
-    <div className="flex flex-col p-0">
+    <button type="button" onClick={onClick} className="flex flex-col p-0 w-full text-left">
 
-      <button type="button" onClick={onClick} className="px-2 text-left">
+      <div className="px-2">
         <div className="rounded-2xl overflow-hidden w-full">
           <div className="h-48 mb-0.5 relative w-full">
-            <img
-              alt={salon.name}
-              className="h-full w-full shrink-0 select-none object-cover"
-              loading="lazy"
-              src={salon.image}
-            />
+            {salon.image ? (
+              <img
+                alt={salon.name}
+                className="h-full w-full shrink-0 select-none object-cover"
+                loading="lazy"
+                src={salon.image}
+              />
+            ) : (
+              <div className="h-full w-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+                <Logo width={100} height={100} />
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-4 gap-0.5">
-            {galleryImages.slice(0, 4).map((img, index) => (
-              <div key={index} className="aspect-square overflow-hidden">
-                <img src={img} alt="" className="w-full h-full object-cover" />
-              </div>
-            ))}
-          </div>
+          {galleryImages.length > 0 && (
+            <div className="grid grid-cols-4 gap-0.5">
+              {galleryImages.slice(0, 4).map((img, index) => (
+                <div key={index} className="aspect-square overflow-hidden">
+                  <img src={img} alt="" className="w-full h-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </button>
+      </div>
 
       <div className="grid grid-cols-12 gap-2 px-2 pt-2">
         <div className="col-span-8">
@@ -72,47 +78,57 @@ export function SalonFeedCard({
               <span>{salon.name}</span>
             </h3>
             {salon.services && salon.services.length > 0 && (
-              <p className="text-base text-stone-500 dark:text-stone-500 line-clamp-1">
-                {salon.services.join(" . ")}
-              </p>
+              <div className="flex items-center text-base text-stone-500 dark:text-stone-500">
+                <span className="truncate">
+                  {salon.services.slice(0, -1).join(" · ")}
+                </span>
+                {salon.services.length > 1 && <span className="mx-1">·</span>}
+                <span className="shrink-0">{salon.services[salon.services.length - 1]}</span>
+              </div>
             )}
           </div>
         </div>
-        <div className="col-span-4 py-1">
+        <div className="col-span-4 py-1" onClick={(e) => e.stopPropagation()}>
           <Button className="w-full truncate" onPress={onBookClick}>
-            <span className="truncate">Band qilish</span>
+            <span className="truncate">{t('home.book')}</span>
           </Button>
         </div>
       </div>
 
       <div className="pb-8 mt-3">
         <div className="px-3 flex items-center gap-2 w-full h-8">
-          <button
-            type="button"
-            onClick={onLikeClick}
-            className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onLikeClick?.(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onLikeClick?.(); } }}
+            className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
           >
             <Star size={20} className="mx-auto fill-yellow-500 text-yellow-500" />
             <span className="text-sm dark:text-stone-300">{salon.rating ?? 0}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onReviewsClick}
-            className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+          </span>
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onReviewsClick?.(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onReviewsClick?.(); } }}
+            className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
           >
             <MessageCircle size={20} className="mx-auto dark:text-stone-300" />
             <span className="text-sm dark:text-stone-300">{salon.comments ?? 0}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onNavigateClick}
-            className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+          </span>
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onNavigateClick?.(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onNavigateClick?.(); } }}
+            className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 px-2 rounded-full h-full hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer"
           >
             <Navigation size={20} className="mx-auto dark:text-stone-300" />
             <span className="text-sm dark:text-stone-300">{salon.distance ?? "N/A"}</span>
-          </button>
+          </span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }

@@ -17,6 +17,7 @@ import { bottomNav } from "~/stores/bottomNav";
 import { HomeSkeleton } from "~/components/skeletons";
 import { useOnboardingStore } from "~/stores/onboarding-store";
 import { useLocationStore } from "~/stores/location";
+import { useI18nStore } from "~/stores/i18n-store";
 import { getNearestBusinesses, getDistance, type Business } from "~/lib/business-api";
 import { MapPin, Star } from "lucide-react";
 import { ReviewsModal } from "~/components/ReviewsModal";
@@ -30,17 +31,6 @@ import massageIcon from "~/assets/icons/massage.png";
 import shavingBrushIcon from "~/assets/icons/shaving-brush.png";
 import creamIcon from "~/assets/icons/cream.png";
 import pluckingIcon from "~/assets/icons/plucking.png";
-
-// All services for sticky header
-const allServices = [
-  { id: "1", name: "Soch olish", icon: scissorIcon, badge: null },
-  { id: "4", name: "Soqol", icon: shavingBrushIcon },
-  { id: "3", name: "Bo'yash", icon: dyeIcon },
-  { id: "2", name: "Pardoz", icon: makeupIcon, badge: "-30%" },
-  { id: "5", name: "Teri", icon: creamIcon },
-  { id: "6", name: "Epilyatsiya", icon: pluckingIcon },
-  { id: "7", name: "Massaj", icon: massageIcon },
-];
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -58,6 +48,18 @@ export default function Home() {
   const [reviewsSalon, setReviewsSalon] = useState<SalonFeedData | null>(null);
   const clearOnboardingData = useOnboardingStore((state) => state.clearData);
   const { lat, lon } = useLocationStore();
+  const { t, language } = useI18nStore();
+
+  // All services for sticky header - using translations
+  const allServices = useMemo(() => [
+    { id: "1", name: t('service.haircut'), icon: scissorIcon, badge: null },
+    { id: "4", name: t('service.beard'), icon: shavingBrushIcon },
+    { id: "3", name: t('service.coloring'), icon: dyeIcon },
+    { id: "2", name: t('service.makeup'), icon: makeupIcon, badge: "-30%" },
+    { id: "5", name: t('service.skincare'), icon: creamIcon },
+    { id: "6", name: t('service.epilation'), icon: pluckingIcon },
+    { id: "7", name: t('service.massage'), icon: massageIcon },
+  ], [t]);
 
   // Fetch nearest businesses using React Query
   const { data: businessesResponse, isLoading: isLoadingBusinesses, error: businessError, refetch } = useQuery({
@@ -109,9 +111,9 @@ export default function Home() {
   // Map businesses to FeaturedSalon format
   const nearestSalons = useMemo(() => {
     return businesses.slice(0, 5).map((business) => {
-      // Get active services and format them
+      // Get active services and format them based on language
       const activeServices = business.services.filter((s) => s.is_active);
-      const serviceNames = activeServices.slice(0, 2).map((s) => s.name);
+      const serviceNames = activeServices.slice(0, 2).map((s) => s.name[language] || s.name.uz);
       const remainingCount = activeServices.length - 2;
 
       // Format distance: show meters if < 1km, otherwise km
@@ -123,25 +125,25 @@ export default function Home() {
       return {
         id: business.id,
         name: business.business_name,
-        image: `https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile`,
+        image: business.avatar_url,
         services: remainingCount > 0
           ? [...serviceNames, `+${remainingCount}`]
           : serviceNames,
-        address: `${distanceText} sizdan`,
+        address: `${distanceText} ${t('home.fromYou')}`,
         rating: 4.5,
         reviewCount: "1.2k",
         isFavorite: false,
       } satisfies FeaturedSalon;
     });
-  }, [businesses]);
+  }, [businesses, language, t]);
 
   // Map businesses to SalonFeedData format
   const feedSalons = useMemo(() => {
     return businesses.map((business) => {
       const salonDetail = salonsData[business.id];
-      // Get active services and format them
+      // Get active services and format them based on language
       const activeServices = business.services.filter((s) => s.is_active);
-      const serviceNames = activeServices.slice(0, 3).map((s) => s.name);
+      const serviceNames = activeServices.slice(0, 3).map((s) => s.name[language] || s.name.uz);
       const remainingCount = activeServices.length - 3;
 
       // Format distance: show meters if < 1km, otherwise km
@@ -153,21 +155,21 @@ export default function Home() {
       return {
         id: business.id,
         name: business.business_name,
-        image: `https://images.fresha.com/lead-images/placeholders/beauty-salon-91.jpg?class=venue-gallery-mobile`,
-        address: `${distanceText} sizdan`,
+        image: business.avatar_url,
+        address: `${distanceText} ${t('home.fromYou')}`,
         services: remainingCount > 0
           ? [...serviceNames, `+${remainingCount}`]
           : serviceNames,
         likes: 75,
         rating: 4.5,
         comments: salonDetail?.reviews.length ?? 12,
-        distance: `${distanceText} sizdan`,
+        distance: `${distanceText} ${t('home.fromYou')}`,
         gallery: salonDetail?.gallery,
         reviews: salonDetail?.reviews,
         stylists: salonDetail?.stylists,
       } satisfies SalonFeedData;
     });
-  }, [businesses]);
+  }, [businesses, language, t]);
 
   // Show sticky header when scrolled past 50%
   const showStickyHeader = scrollProgress > 0.5;
@@ -204,7 +206,7 @@ export default function Home() {
         {/* Header with Search */}
         <div className="px-4 py-6">
           <SearchBar
-            placeholder="Qidirish..."
+            placeholder={t('home.search')}
             onFocus={() => navigate("/search")}
             onFilterClick={() => console.log("Filter clicked")}
           />
@@ -237,8 +239,8 @@ export default function Home() {
         {/* Featured Salon Section */}
         <div className="mt-6 mb-6 bg-gradient-to-br from-stone-100 via-stone-100 to-stone-50 dark:from-stone-800 dark:via-stone-800 dark:to-stone-900 rounded-3xl pt-4 overflow-hidden">
           <SectionHeader
-            title="Eng yaqin salonlar"
-            actionLabel="Barchasini ko'rish"
+            title={t('home.nearestSalons')}
+            actionLabel={t('home.viewAll')}
             onActionClick={() => console.log("View all salons")}
             className="px-4 mb-4"
           />
@@ -254,12 +256,12 @@ export default function Home() {
             </div>
           ) : businessError ? (
             <div className="px-4 pb-4">
-              <p className="text-red-500 text-sm mb-2">Salonlarni yuklashda xatolik</p>
+              <p className="text-red-500 text-sm mb-2">{t('home.loadError')}</p>
               <button
                 onClick={() => refetch()}
                 className="text-primary text-sm font-medium"
               >
-                Qayta urinish
+                {t('home.retry')}
               </button>
             </div>
           ) : nearestSalons.length > 0 ? (
@@ -275,7 +277,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="px-4 pb-4 text-center text-stone-500 text-sm h-72 flex items-center justify-center">
-              Yaqin atrofda salon topilmadi
+              {t('home.noSalonsNearby')}
             </div>
           )}
         </div>
@@ -293,12 +295,12 @@ export default function Home() {
             </>
           ) : businessError ? (
             <div className="px-4 py-8 text-center">
-              <p className="text-red-500 text-sm mb-2">Salonlarni yuklashda xatolik</p>
+              <p className="text-red-500 text-sm mb-2">{t('home.loadError')}</p>
               <button
                 onClick={() => refetch()}
                 className="text-primary text-sm font-medium"
               >
-                Qayta urinish
+                {t('home.retry')}
               </button>
             </div>
           ) : feedSalons.length > 0 ? (

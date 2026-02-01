@@ -4,9 +4,11 @@ import type { SalonContext } from "./salon";
 import { ReviewCard } from "~/components/ReviewCard";
 import { ReviewFilters, type ReviewFiltersState } from "~/components/ReviewFilters";
 import { RatingSummary } from "~/components/RatingSummary";
+import { useI18nStore } from "~/stores/i18n-store";
 
 export default function SalonReviews() {
   const { salon } = useOutletContext<SalonContext>();
+  const { t } = useI18nStore();
   const [filters, setFilters] = useState<ReviewFiltersState>({
     rating: "all",
     service: "all",
@@ -80,7 +82,7 @@ export default function SalonReviews() {
 
         {filteredReviews.length === 0 && (
           <div className="py-8 text-center text-stone-500 dark:text-stone-400">
-            Bu filtr bo'yicha sharhlar yo'q
+            {t('salon.noReviews')}
           </div>
         )}
       </div>

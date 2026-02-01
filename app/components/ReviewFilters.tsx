@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useBlocker } from "react-router";
 import { Check, ChevronDown } from "lucide-react";
 import { BottomSheet } from "~/components/BottomSheet";
+import { useI18nStore } from "~/stores/i18n-store";
 import type { Stylist } from "./ReviewCard";
 
 type FilterType = "rating" | "service" | "stylist" | null;
@@ -28,6 +29,7 @@ export function ReviewFilters({
   onChange,
 }: ReviewFiltersProps) {
   const [openFilter, setOpenFilter] = useState<FilterType>(null);
+  const { t } = useI18nStore();
 
   // Block back navigation when modal is open
   const blocker = useBlocker(openFilter !== null);
@@ -43,20 +45,20 @@ export function ReviewFilters({
 
   // Get display labels
   const getRatingLabel = () => {
-    if (value.rating === "high") return "Eng yuqori";
-    if (value.rating === "low") return "Eng past";
-    return "Baho";
+    if (value.rating === "high") return t('reviews.highest');
+    if (value.rating === "low") return t('reviews.lowest');
+    return t('reviews.rating');
   };
 
   const getServiceLabel = () => {
-    if (value.service === "all") return "Xizmat";
+    if (value.service === "all") return t('reviews.service');
     return value.service;
   };
 
   const getStylistLabel = () => {
-    if (value.stylist === "all") return "Usta";
+    if (value.stylist === "all") return t('reviews.stylist');
     const stylist = stylists.find((s) => s.id === value.stylist);
-    return stylist?.name || "Usta";
+    return stylist?.name || t('reviews.stylist');
   };
 
   return (
@@ -108,14 +110,14 @@ export function ReviewFilters({
       <BottomSheet
         isOpen={openFilter === "rating"}
         onClose={closeFilter}
-        title="Baho bo'yicha saralash"
+        title={t('reviews.sortByRating')}
         showCloseButton={false}
         maxHeight="auto"
       >
         <div className="py-2">
           {[
-            { id: "high" as const, label: "Eng yuqori" },
-            { id: "low" as const, label: "Eng past" },
+            { id: "high" as const, label: t('reviews.highest') },
+            { id: "low" as const, label: t('reviews.lowest') },
           ].map((option) => (
             <button
               key={option.id}
@@ -143,7 +145,7 @@ export function ReviewFilters({
               }}
               className="w-full mt-2 py-3 rounded-xl text-base font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
             >
-              Tozalash
+              {t('reviews.clear')}
             </button>
           )}
         </div>
@@ -153,7 +155,7 @@ export function ReviewFilters({
       <BottomSheet
         isOpen={openFilter === "service"}
         onClose={closeFilter}
-        title="Xizmat bo'yicha filtrlash"
+        title={t('reviews.filterByService')}
         showCloseButton={false}
         maxHeight="50vh"
       >
@@ -185,7 +187,7 @@ export function ReviewFilters({
               }}
               className="w-full mt-2 py-3 rounded-xl text-base font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
             >
-              Tozalash
+              {t('reviews.clear')}
             </button>
           )}
         </div>
@@ -195,7 +197,7 @@ export function ReviewFilters({
       <BottomSheet
         isOpen={openFilter === "stylist"}
         onClose={closeFilter}
-        title="Usta bo'yicha filtrlash"
+        title={t('reviews.filterByStylist')}
         showCloseButton={false}
         maxHeight="50vh"
       >
@@ -239,7 +241,7 @@ export function ReviewFilters({
               }}
               className="w-full mt-2 py-3 rounded-xl text-base font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
             >
-              Tozalash
+              {t('reviews.clear')}
             </button>
           )}
         </div>

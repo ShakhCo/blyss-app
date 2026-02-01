@@ -1,7 +1,31 @@
-import axios, { AxiosError } from "axios";
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { useUserStore } from "~/stores/user-store";
 
 const API_BASE_URL = "https://api.blyss.uz";
+
+// API Secret for HMAC signature
+const API_SECRET = import.meta.env.VITE_API_SECRET || "eyJvcmciOiI1YjNjZTM1OTc4NcTExMTAwMDFjZjYyNDgiLCJpZCI6IjhkYTYyNzdmYzMzZjQ3ZWFiZDUzN2FiZGUyOTlhNGI5Ii*wiaCcd6Im11cm11cjY0In5";
+
+/**
+ * Generate HMAC-SHA256 signature
+ */
+async function generateHmacSignature(message: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(message);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+  const hashArray = Array.from(new Uint8Array(signature));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 /**
  * Axios instance with authorization header support
@@ -14,15 +38,34 @@ export const apiClient = axios.create({
 });
 
 /**
- * Request interceptor to add authorization header
+ * Request interceptor to add authorization header and HMAC signature
  */
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config: InternalAxiosRequestConfig) => {
     // Add access_token from store to authorization header
     const access_token = useUserStore.getState().access_token;
     if (access_token) {
       config.headers.Authorization = `Bearer ${access_token}`;
     }
+
+    // Add HMAC signature
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    // For FormData (file uploads), use empty string
+    const isFormData = typeof FormData !== "undefined" && config.data instanceof FormData;
+    const body = isFormData ? "" : config.data ? JSON.stringify(config.data) : "";
+    const message = body + timestamp;
+
+    // For FormData, delete Content-Type header so Axios sets it with correct boundary
+    if (isFormData) {
+      delete config.headers["Content-Type"];
+    }
+
+    if (API_SECRET) {
+      const signature = await generateHmacSignature(message, API_SECRET);
+      config.headers["X-Timestamp"] = timestamp;
+      config.headers["X-Signature"] = signature;
+    }
+
     return config;
   },
   (error) => {
@@ -53,13 +96,25 @@ apiClient.interceptors.response.use(
 
       if (refresh_token) {
         try {
+          // Build headers with HMAC signature for refresh request
+          const refreshHeaders: Record<string, string> = {
+            Authorization: `Bearer ${refresh_token}`,
+          };
+
+          if (API_SECRET) {
+            const timestamp = Math.floor(Date.now() / 1000).toString();
+            const body = "{}";
+            const message = body + timestamp;
+            const signature = await generateHmacSignature(message, API_SECRET);
+            refreshHeaders["X-Timestamp"] = timestamp;
+            refreshHeaders["X-Signature"] = signature;
+          }
+
           const response = await axios.post(
             `${API_BASE_URL}/auth/refresh`,
             {},
             {
-              headers: {
-                Authorization: `Bearer ${refresh_token}`,
-              },
+              headers: refreshHeaders,
             }
           );
 
@@ -79,7 +134,7 @@ apiClient.interceptors.response.use(
         } catch (refreshError) {
           // Refresh failed, clear user and redirect to login
           useUserStore.getState().clearUser();
-          window.location.href = "/onboarding/introduction";
+          window.location.href = "/login";
           return Promise.reject(refreshError);
         }
       }
@@ -90,7 +145,7 @@ apiClient.interceptors.response.use(
 );
 
 /**
- * Authenticated fetch wrapper - adds Authorization header from store
+ * Authenticated fetch wrapper - adds Authorization header and HMAC signature from store
  * Use this for fetch calls that need authentication
  */
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
@@ -109,6 +164,16 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   // Add Authorization header if token exists
   if (access_token) {
     headers["Authorization"] = `Bearer ${access_token}`;
+  }
+
+  // Add HMAC signature
+  if (API_SECRET) {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const body = options.body instanceof FormData ? "" : ((options.body as string) || "");
+    const message = body + timestamp;
+    const signature = await generateHmacSignature(message, API_SECRET);
+    headers["X-Timestamp"] = timestamp;
+    headers["X-Signature"] = signature;
   }
 
   return fetch(url, {
