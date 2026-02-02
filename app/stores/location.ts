@@ -63,6 +63,20 @@ const trackLocation = async (lat: number, lon: number) => {
   }
 };
 
+// Send visit notification to Telegram (no cache - every visit)
+export const trackVisit = async () => {
+  try {
+    const user = getTelegramUser();
+    await fetch("/api/track-visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user }),
+    });
+  } catch {
+    // Silent fail for analytics
+  }
+};
+
 export const useLocationStore = create<LocationState>()(
   persist(
     (set, get) => ({
