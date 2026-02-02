@@ -10,7 +10,7 @@ interface Location {
 }
 
 interface LocationState {
-  browser_location: Location | null;
+  telegram_location: Location | null;
   google_geolocation: Location | null;
   isLoading: boolean;
   error: string | null;
@@ -25,13 +25,13 @@ const LOCATION_CACHE_MS = 60 * 60 * 1000; // 1 hour
 // TEST: Override location for distance testing (set to null to use real location)
 const TEST_LOCATION_OVERRIDE: { lat: number; lon: number } | null = null;
 
-// Selector that returns the best available location (browser > google > null)
+// Selector that returns the best available location (telegram > google > null)
 export const useTestableLocation = () => {
-  const browserLocation = useLocationStore((state) => state.browser_location);
+  const telegramLocation = useLocationStore((state) => state.telegram_location);
   const googleLocation = useLocationStore((state) => state.google_geolocation);
 
   if (TEST_LOCATION_OVERRIDE) return TEST_LOCATION_OVERRIDE;
-  if (browserLocation) return { lat: browserLocation.lat, lon: browserLocation.lon };
+  if (telegramLocation) return { lat: telegramLocation.lat, lon: telegramLocation.lon };
   if (googleLocation) return { lat: googleLocation.lat, lon: googleLocation.lon };
   return null;
 };
@@ -40,7 +40,7 @@ export const useTestableLocation = () => {
 export const getTestableLocation = () => {
   if (TEST_LOCATION_OVERRIDE) return TEST_LOCATION_OVERRIDE;
   const state = useLocationStore.getState();
-  if (state.browser_location) return { lat: state.browser_location.lat, lon: state.browser_location.lon };
+  if (state.telegram_location) return { lat: state.telegram_location.lat, lon: state.telegram_location.lon };
   if (state.google_geolocation) return { lat: state.google_geolocation.lat, lon: state.google_geolocation.lon };
   return null;
 };
@@ -81,7 +81,7 @@ const trackLocation = async (lat: number, lon: number, accuracy?: number) => {
 export const useLocationStore = create<LocationState>()(
   persist(
     (set, get) => ({
-      browser_location: null,
+      telegram_location: null,
       google_geolocation: null,
       isLoading: false,
       error: null,
@@ -100,57 +100,74 @@ export const useLocationStore = create<LocationState>()(
 
         const state = get();
 
-        // Check if browser_location is fresh (within 1 hour)
-        if (state.browser_location) {
-          const age = Date.now() - state.browser_location.last_updated;
+        // Check if telegram_location is fresh (within 1 hour)
+        if (state.telegram_location) {
+          const age = Date.now() - state.telegram_location.last_updated;
           if (age < LOCATION_CACHE_MS) {
-            console.log("[Location] Browser location is fresh, using cached location");
-            // Still send to Telegram for tracking
-            await trackLocation(state.browser_location.lat, state.browser_location.lon, state.browser_location.accuracy);
+            console.log("[Location] Telegram location is fresh, using cached location");
+            // Still send to tracking
+            await trackLocation(state.telegram_location.lat, state.telegram_location.lon, state.telegram_location.accuracy);
             return;
           }
-          console.log("[Location] Browser location is stale, requesting new location");
-        }
-
-        // Check if browser Geolocation API is supported
-        if (!navigator.geolocation) {
-          console.log("[Location] Browser geolocation not supported, falling back to Google");
-          await get().fetchGoogleGeolocation();
-          return;
+          console.log("[Location] Telegram location is stale, requesting new location");
         }
 
         set({ isLoading: true, error: null });
 
         try {
-          console.log("[Location] Requesting browser location...");
-          const position = await new Promise<GeolocationPosition>(
-            (resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0,
-              });
-            }
-          );
+          // Import Telegram SDK locationManager
+          const { locationManager } = await import("@tma.js/sdk-react");
 
-          const { latitude, longitude, accuracy } = position.coords;
-          console.log("[Location] Browser location received:", { latitude, longitude, accuracy });
+          // Check if locationManager is supported
+          if (!locationManager.isSupported()) {
+            console.log("[Location] Telegram locationManager not supported, falling back to Google");
+            set({ isLoading: false });
+            await get().fetchGoogleGeolocation();
+            return;
+          }
+
+          // Mount locationManager if not already mounted
+          if (!locationManager.isMounted()) {
+            if (locationManager.mount.isAvailable()) {
+              console.log("[Location] Mounting Telegram locationManager...");
+              await locationManager.mount();
+            } else {
+              console.log("[Location] Telegram locationManager mount not available, falling back to Google");
+              set({ isLoading: false });
+              await get().fetchGoogleGeolocation();
+              return;
+            }
+          }
+
+          // Request location from Telegram
+          console.log("[Location] Requesting Telegram location...");
+          const location = await locationManager.requestLocation();
+
+          if (!location) {
+            console.log("[Location] Telegram location request returned null, falling back to Google");
+            set({ isLoading: false });
+            await get().fetchGoogleGeolocation();
+            return;
+          }
+
+          const { latitude, longitude, horizontal_accuracy } = location;
+          console.log("[Location] Telegram location received:", { latitude, longitude, horizontal_accuracy });
 
           set({
-            browser_location: {
+            telegram_location: {
               lat: latitude,
               lon: longitude,
-              accuracy,
+              accuracy: horizontal_accuracy ?? undefined,
               last_updated: Date.now(),
             },
             isLoading: false,
             error: null,
           });
 
-          // Send to Telegram
-          await trackLocation(latitude, longitude, accuracy);
+          // Send to tracking
+          await trackLocation(latitude, longitude, horizontal_accuracy ?? undefined);
         } catch (error) {
-          console.log("[Location] Browser location denied or failed, falling back to Google");
+          console.log("[Location] Telegram location denied or failed, falling back to Google", error);
           set({ isLoading: false });
 
           // User denied or error - fall back to Google Geolocation
@@ -217,7 +234,7 @@ export const useLocationStore = create<LocationState>()(
     {
       name: "blyss-location",
       partialize: (state) => ({
-        browser_location: state.browser_location,
+        telegram_location: state.telegram_location,
         google_geolocation: state.google_geolocation,
       }),
       onRehydrateStorage: () => (state) => {

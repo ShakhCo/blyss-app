@@ -131,7 +131,7 @@ export default function MapPage() {
       fetchLocation().then(() => {
         // Check if location was obtained after fetch
         const state = useLocationStore.getState();
-        if (!state.browser_location && !state.google_geolocation) {
+        if (!state.telegram_location && !state.google_geolocation) {
           setLocationError(true);
         }
       });
@@ -262,7 +262,7 @@ export default function MapPage() {
                     setLocationError(false);
                     fetchLocation().then(() => {
                       const state = useLocationStore.getState();
-                      if (!state.browser_location && !state.google_geolocation) {
+                      if (!state.telegram_location && !state.google_geolocation) {
                         setLocationError(true);
                       }
                     });
