@@ -1,19 +1,30 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { Employee, TimeSlot } from "~/lib/booking-api";
+import type { MultilingualText } from "~/lib/business-api";
 
 export interface BookingService {
   id: string;
   name: string;
+  nameMultilingual?: MultilingualText;
   duration: string;
+  durationMinutes?: number;
   price: string;
+  priceNumber?: number;
   category: string;
+}
+
+// Extended service with employee and time selection
+export interface BookingServiceWithSelection extends BookingService {
+  selectedEmployee?: Employee | null;
+  selectedTime?: string | null; // "HH:mm" format
 }
 
 export interface Booking {
   id: string;
   salonId: string;
   salonName: string;
-  services: BookingService[]; // Changed from single service to array
+  services: BookingService[];
   date: string; // ISO date string
   time: string; // e.g., "14:00"
   status: "pending" | "confirmed" | "completed" | "cancelled";
@@ -24,12 +35,25 @@ export interface Booking {
 interface BookingCartState {
   salonId: string | null;
   salonName: string | null;
-  selectedServices: BookingService[];
+  selectedServices: BookingServiceWithSelection[];
+  selectedDate: string | null; // "YYYY-MM-DD"
+  availableSlots: TimeSlot[];
+  isLoadingSlots: boolean;
+
+  // Actions
+  setSalon: (salonId: string, salonName: string) => void;
   addService: (service: BookingService) => void;
   removeService: (serviceId: string) => void;
+  updateServiceEmployee: (serviceId: string, employee: Employee | null) => void;
+  updateServiceTime: (serviceId: string, time: string | null) => void;
+  setSelectedDate: (date: string | null) => void;
+  setAvailableSlots: (slots: TimeSlot[]) => void;
+  setIsLoadingSlots: (loading: boolean) => void;
   clearCart: () => void;
-  setSalon: (salonId: string, salonName: string) => void;
   getTotalPrice: () => number;
+  getTotalDuration: () => number;
+  isReadyToBook: () => boolean;
+  getFirstServiceStartTime: () => string | null;
 }
 
 interface BookingState {
@@ -144,6 +168,9 @@ export const useBookingCartStore = create<BookingCartState>()(
       salonId: null,
       salonName: null,
       selectedServices: [],
+      selectedDate: null,
+      availableSlots: [],
+      isLoadingSlots: false,
 
       setSalon: (salonId, salonName) => {
         set({ salonId, salonName });
@@ -155,8 +182,13 @@ export const useBookingCartStore = create<BookingCartState>()(
           if (state.selectedServices.some((s) => s.id === service.id)) {
             return state;
           }
+          const extendedService: BookingServiceWithSelection = {
+            ...service,
+            selectedEmployee: null,
+            selectedTime: null,
+          };
           return {
-            selectedServices: [...state.selectedServices, service],
+            selectedServices: [...state.selectedServices, extendedService],
           };
         });
       },
@@ -167,16 +199,94 @@ export const useBookingCartStore = create<BookingCartState>()(
         }));
       },
 
+      updateServiceEmployee: (serviceId, employee) => {
+        set((state) => ({
+          selectedServices: state.selectedServices.map((s) =>
+            s.id === serviceId
+              ? { ...s, selectedEmployee: employee }
+              : s
+          ),
+        }));
+      },
+
+      updateServiceTime: (serviceId, time) => {
+        set((state) => ({
+          selectedServices: state.selectedServices.map((s) =>
+            s.id === serviceId
+              ? { ...s, selectedTime: time }
+              : s
+          ),
+        }));
+      },
+
+      setSelectedDate: (date) => {
+        set({ selectedDate: date });
+      },
+
+      setAvailableSlots: (slots) => {
+        set({ availableSlots: slots });
+      },
+
+      setIsLoadingSlots: (loading) => {
+        set({ isLoadingSlots: loading });
+      },
+
       clearCart: () => {
-        set({ salonId: null, salonName: null, selectedServices: [] });
+        set({
+          salonId: null,
+          salonName: null,
+          selectedServices: [],
+          selectedDate: null,
+          availableSlots: [],
+          isLoadingSlots: false,
+        });
       },
 
       getTotalPrice: () => {
         return get().selectedServices.reduce((total, service) => {
+          // Use employee price if available, otherwise use service price
+          if (service.selectedEmployee) {
+            return total + service.selectedEmployee.service_price;
+          }
           // Parse price string like "50,000" to number
-          const priceNum = parseInt(service.price.replace(/[^0-9]/g, ""), 10) || 0;
+          const priceNum = service.priceNumber || parseInt(service.price.replace(/[^0-9]/g, ""), 10) || 0;
           return total + priceNum;
         }, 0);
+      },
+
+      getTotalDuration: () => {
+        return get().selectedServices.reduce((total, service) => {
+          // Use employee duration if available, otherwise use service duration
+          if (service.selectedEmployee) {
+            return total + service.selectedEmployee.service_duration_minutes;
+          }
+          return total + (service.durationMinutes || 0);
+        }, 0);
+      },
+
+      isReadyToBook: () => {
+        const state = get();
+        if (!state.salonId || !state.selectedDate || state.selectedServices.length === 0) {
+          return false;
+        }
+        // Check all services have employee and time selected
+        return state.selectedServices.every(
+          (s) => s.selectedEmployee && s.selectedTime
+        );
+      },
+
+      getFirstServiceStartTime: () => {
+        const services = get().selectedServices;
+        if (services.length === 0) return null;
+
+        // Find the earliest time among all selected services
+        const times = services
+          .map((s) => s.selectedTime)
+          .filter((t): t is string => t !== null && t !== undefined);
+
+        if (times.length === 0) return null;
+
+        return times.sort()[0];
       },
     }),
     {
@@ -193,10 +303,23 @@ export const bookingCart = {
     useBookingCartStore.getState().addService(service),
   removeService: (serviceId: string) =>
     useBookingCartStore.getState().removeService(serviceId),
+  updateServiceEmployee: (serviceId: string, employee: Employee | null) =>
+    useBookingCartStore.getState().updateServiceEmployee(serviceId, employee),
+  updateServiceTime: (serviceId: string, time: string | null) =>
+    useBookingCartStore.getState().updateServiceTime(serviceId, time),
+  setSelectedDate: (date: string | null) =>
+    useBookingCartStore.getState().setSelectedDate(date),
+  setAvailableSlots: (slots: TimeSlot[]) =>
+    useBookingCartStore.getState().setAvailableSlots(slots),
+  setIsLoadingSlots: (loading: boolean) =>
+    useBookingCartStore.getState().setIsLoadingSlots(loading),
   clear: () => useBookingCartStore.getState().clearCart(),
   getTotal: () => useBookingCartStore.getState().getTotalPrice(),
+  getTotalDuration: () => useBookingCartStore.getState().getTotalDuration(),
   getServices: () => useBookingCartStore.getState().selectedServices,
   getSalonId: () => useBookingCartStore.getState().salonId,
+  isReadyToBook: () => useBookingCartStore.getState().isReadyToBook(),
+  getFirstServiceStartTime: () => useBookingCartStore.getState().getFirstServiceStartTime(),
 };
 
 // UI state store for booking page expandable sections
@@ -207,7 +330,9 @@ interface BookingUIState {
   isCalendarExpanded: boolean;
   isTimeExpanded: boolean;
   isPaymentExpanded: boolean;
-  setExpanded: (section: keyof Omit<BookingUIState, "setExpanded" | "resetUI">, value: boolean) => void;
+  activeServiceIndex: number; // Which service we're selecting employee/time for
+  setExpanded: (section: keyof Omit<BookingUIState, "setExpanded" | "resetUI" | "setActiveServiceIndex" | "activeServiceIndex">, value: boolean) => void;
+  setActiveServiceIndex: (index: number) => void;
   resetUI: () => void;
 }
 
@@ -218,6 +343,7 @@ const defaultUIState = {
   isCalendarExpanded: true,
   isTimeExpanded: true,
   isPaymentExpanded: false,
+  activeServiceIndex: 0,
 };
 
 export const useBookingUIStore = create<BookingUIState>()((set) => ({
@@ -227,6 +353,10 @@ export const useBookingUIStore = create<BookingUIState>()((set) => ({
     set({ [section]: value });
   },
 
+  setActiveServiceIndex: (index) => {
+    set({ activeServiceIndex: index });
+  },
+
   resetUI: () => {
     set(defaultUIState);
   },
@@ -234,7 +364,9 @@ export const useBookingUIStore = create<BookingUIState>()((set) => ({
 
 // Convenience functions for UI store
 export const bookingUI = {
-  setExpanded: (section: keyof Omit<BookingUIState, "setExpanded" | "resetUI">, value: boolean) =>
+  setExpanded: (section: keyof Omit<BookingUIState, "setExpanded" | "resetUI" | "setActiveServiceIndex" | "activeServiceIndex">, value: boolean) =>
     useBookingUIStore.getState().setExpanded(section, value),
+  setActiveServiceIndex: (index: number) =>
+    useBookingUIStore.getState().setActiveServiceIndex(index),
   reset: () => useBookingUIStore.getState().resetUI(),
 };

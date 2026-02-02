@@ -282,8 +282,11 @@ export default function SalonPage() {
     services: (businessData.services || []).map(s => ({
       id: s.id || "",
       name: s.name?.[language] || s.name?.uz || "",
+      nameMultilingual: s.name,
       duration: s.duration_minutes ? `${s.duration_minutes} ${t('common.minutes')}` : "",
+      durationMinutes: s.duration_minutes,
       price: s.price?.toLocaleString() || "0",
+      priceNumber: s.price,
       category: "General",
     })),
     amenities: [],
