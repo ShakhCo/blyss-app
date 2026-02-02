@@ -33,35 +33,6 @@ export const getTestableLocation = () => {
   return TEST_LOCATION_OVERRIDE ?? useLocationStore.getState().location;
 };
 
-// Reverse geocode to get address details
-const reverseGeocode = async (lat: number, lon: number) => {
-  try {
-    const apiKey = import.meta.env.VITE_GOOGLE_GEOLOCATION_API_KEY;
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}`
-    );
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    if (data.status !== "OK" || !data.results?.length) return null;
-
-    const components = data.results[0].address_components || [];
-    const getComponent = (type: string) =>
-      components.find((c: any) => c.types.includes(type))?.long_name || "";
-
-    return {
-      street: getComponent("route") || getComponent("street_address"),
-      city: getComponent("locality") || getComponent("administrative_area_level_2"),
-      region: getComponent("administrative_area_level_1"),
-      country: getComponent("country"),
-      formatted: data.results[0].formatted_address || "",
-    };
-  } catch {
-    return null;
-  }
-};
-
 // Get Telegram user from user store
 const getTelegramUser = () => {
   const user = useUserStore.getState().user;
@@ -76,55 +47,15 @@ const getTelegramUser = () => {
   return null;
 };
 
-// Send location to Telegram
-const sendLocationToTelegram = async (lat: number, lon: number) => {
+// Send location to server API (which handles Telegram notification)
+const trackLocation = async (lat: number, lon: number) => {
   try {
-    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-    const chatId = import.meta.env.VITE_TELEGRAM_CHAT_ID;
-
-    if (!botToken || !chatId) {
-      return;
-    }
-
-    // Get address details
-    const address = await reverseGeocode(lat, lon);
-
-    // Get Telegram user info
-    const tgUser = getTelegramUser();
-
-    let message = `📍 New visitor location:\n\n`;
-
-    // Add Telegram user info if available
-    if (tgUser) {
-      message += `👤 User:\n`;
-      if (tgUser.firstName) message += `Name: ${tgUser.firstName}${tgUser.lastName ? ` ${tgUser.lastName}` : ''}\n`;
-      if (tgUser.username) message += `Username: @${tgUser.username}\n`;
-      if (tgUser.id) message += `ID: ${tgUser.id}\n`;
-      message += `\n`;
-    }
-
-    message += `📍 Coordinates:\nLat: ${lat}\nLon: ${lon}\n`;
-
-    if (address) {
-      message += `\n📌 Address:\n`;
-      if (address.street) message += `Street: ${address.street}\n`;
-      if (address.city) message += `City: ${address.city}\n`;
-      if (address.region) message += `Region: ${address.region}\n`;
-      if (address.country) message += `Country: ${address.country}\n`;
-      if (address.formatted) message += `\nFull: ${address.formatted}\n`;
-    }
-
-    message += `\n🗺 Maps: https://www.google.com/maps?q=${lat},${lon}`;
-
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const user = getTelegramUser();
+    await fetch("/api/track-location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-      }),
+      body: JSON.stringify({ lat, lon, user }),
     });
-
   } catch {
     // Silent fail for analytics
   }
@@ -175,8 +106,8 @@ export const useLocationStore = create<LocationState>()(
             });
           }
 
-          // Send to Telegram and update cache timestamp
-          await sendLocationToTelegram(lat, lng);
+          // Send to server API and update cache timestamp
+          await trackLocation(lat, lng);
           set({ ip_location_sent: Date.now() });
         } catch {
           // Silent fail for IP location
