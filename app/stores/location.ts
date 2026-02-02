@@ -20,8 +20,6 @@ interface LocationState {
   fetchGoogleGeolocation: () => Promise<void>;
 }
 
-const LOCATION_CACHE_MS = 60 * 60 * 1000; // 1 hour
-
 // TEST: Override location for distance testing (set to null to use real location)
 const TEST_LOCATION_OVERRIDE: { lat: number; lon: number } | null = null;
 
@@ -88,7 +86,7 @@ export const useLocationStore = create<LocationState>()(
       _hasHydrated: false,
       setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 
-      // Main location fetch function - follows the priority flow
+      // Main location fetch function - always requests fresh location from Telegram
       fetchLocation: async () => {
         console.log("[Location] fetchLocation called");
 
@@ -96,20 +94,6 @@ export const useLocationStore = create<LocationState>()(
         if (typeof window === "undefined") {
           console.log("[Location] SSR - skipping");
           return;
-        }
-
-        const state = get();
-
-        // Check if telegram_location is fresh (within 1 hour)
-        if (state.telegram_location) {
-          const age = Date.now() - state.telegram_location.last_updated;
-          if (age < LOCATION_CACHE_MS) {
-            console.log("[Location] Telegram location is fresh, using cached location");
-            // Still send to tracking
-            await trackLocation(state.telegram_location.lat, state.telegram_location.lon, state.telegram_location.accuracy);
-            return;
-          }
-          console.log("[Location] Telegram location is stale, requesting new location");
         }
 
         set({ isLoading: true, error: null });
@@ -139,12 +123,20 @@ export const useLocationStore = create<LocationState>()(
             }
           }
 
-          // Request location from Telegram
-          console.log("[Location] Requesting Telegram location...");
+          // Request fresh location from Telegram (no caching)
+          console.log("[Location] Requesting fresh Telegram location...");
           const location = await locationManager.requestLocation();
 
           if (!location) {
-            console.log("[Location] Telegram location request returned null, falling back to Google");
+            console.log("[Location] Telegram location request returned null");
+
+            // Try to open settings to ask user for permission
+            if (locationManager.openSettings.isAvailable()) {
+              console.log("[Location] Opening location settings for user to enable permission...");
+              locationManager.openSettings();
+            }
+
+            // Fall back to Google Geolocation
             set({ isLoading: false });
             await get().fetchGoogleGeolocation();
             return;
@@ -167,10 +159,22 @@ export const useLocationStore = create<LocationState>()(
           // Send to tracking
           await trackLocation(latitude, longitude, horizontal_accuracy ?? undefined);
         } catch (error) {
-          console.log("[Location] Telegram location denied or failed, falling back to Google", error);
+          console.log("[Location] Telegram location denied or failed", error);
+
+          try {
+            // Try to open settings to ask user for permission
+            const { locationManager } = await import("@tma.js/sdk-react");
+            if (locationManager.isSupported() && locationManager.openSettings.isAvailable()) {
+              console.log("[Location] Opening location settings for user to enable permission...");
+              locationManager.openSettings();
+            }
+          } catch (settingsError) {
+            console.log("[Location] Could not open settings", settingsError);
+          }
+
           set({ isLoading: false });
 
-          // User denied or error - fall back to Google Geolocation
+          // Fall back to Google Geolocation
           await get().fetchGoogleGeolocation();
         }
       },
