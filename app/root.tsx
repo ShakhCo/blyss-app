@@ -16,6 +16,7 @@ import { Logo } from "./components/icons/Logo";
 import { LocationProvider } from "./components/auth-guard";
 import { queryClient } from "~/lib/query-client";
 import { useUserStore } from "~/stores/user";
+import { PrivacyPolicyConsent } from "./components/PrivacyPolicyConsent";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -65,6 +66,7 @@ export default function App() {
   const [tmaReady, setTmaReady] = useState(false);
   const user = useUserStore((state) => state.user);
   const setUser = useUserStore((state) => state.setUser);
+  const privacyPolicyAccepted = useUserStore((state) => state.privacyPolicyAccepted);
 
   useEffect(() => {
     // Initialize Eruda console for debugging (development only)
@@ -148,6 +150,11 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  // Show privacy policy consent if not yet accepted
+  if (!privacyPolicyAccepted) {
+    return <PrivacyPolicyConsent />;
   }
 
   return user ? <AppContent tmaReady={tmaReady} user={user} /> : <div></div>;
