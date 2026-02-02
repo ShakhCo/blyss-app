@@ -16,7 +16,7 @@ import { useScrollProgress } from "~/hooks/useScrollProgress";
 import { bottomNav } from "~/stores/bottomNav";
 import { HomeSkeleton } from "~/components/skeletons";
 import { useOnboardingStore } from "~/stores/onboarding-store";
-import { useTestableLocation, getTestableLocation } from "~/stores/location";
+import { useTestableLocation, getTestableLocation, useLocationStore } from "~/stores/location";
 import { useI18nStore } from "~/stores/i18n-store";
 import { useBusinessesStore } from "~/stores/businesses";
 import { getNearestBusinesses, getBusinessDetails, type NearestBusiness } from "~/lib/business-api";
@@ -261,10 +261,13 @@ export default function Home() {
   // Show skeleton only if loading AND no cached data
   const showSkeleton = isLoadingBusinesses && cachedBusinesses.length === 0;
 
-  // Show bottom nav and clear onboarding data when home page mounts
+  const fetchIpLocation = useLocationStore((state) => state.fetchIpLocation);
+
+  // Show bottom nav, clear onboarding data, and fetch IP location when home page mounts
   useEffect(() => {
     bottomNav.show();
     clearOnboardingData();
+    fetchIpLocation();
   }, []);
 
   // Map businesses to FeaturedSalon format
