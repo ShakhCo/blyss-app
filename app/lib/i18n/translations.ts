@@ -114,13 +114,9 @@ export const translations = {
     'error.unknownError': "Xatolik yuz berdi",
 
     // Privacy policy
-    'privacy.title': "Maxfiylik siyosati",
-    'privacy.subtitle': "Ilovadan foydalanish uchun maxfiylik siyosatini qabul qiling",
-    'privacy.content': "Biz sizning shaxsiy ma'lumotlaringizni himoya qilamiz. Ma'lumotlaringiz faqat xizmat ko'rsatish maqsadida ishlatiladi va uchinchi shaxslarga berilmaydi.",
-    'privacy.accept': "Qabul qilaman",
-    'privacy.decline': "Rad etaman",
-    'privacy.declineTitle': "Ilovadan chiqish",
-    'privacy.declineMessage': "Maxfiylik siyosatini qabul qilmasangiz, ilovadan foydalana olmaysiz.",
+    'privacy.appDescription': "Go'zallik xizmatlarini oson toping va band qiling",
+    'privacy.continue': "Davom etish",
+    'privacy.termsAgreement': "Davom etish tugmasini bosish orqali siz foydalanish shartlari va maxfiylik siyosatiga rozilik bildirasiz",
   },
   ru: {
     // Login page
@@ -237,13 +233,9 @@ export const translations = {
     'error.unknownError': "Произошла ошибка",
 
     // Privacy policy
-    'privacy.title': "Политика конфиденциальности",
-    'privacy.subtitle': "Для использования приложения примите политику конфиденциальности",
-    'privacy.content': "Мы защищаем ваши персональные данные. Ваша информация используется только для предоставления услуг и не передается третьим лицам.",
-    'privacy.accept': "Принимаю",
-    'privacy.decline': "Отклонить",
-    'privacy.declineTitle': "Выход из приложения",
-    'privacy.declineMessage': "Без принятия политики конфиденциальности вы не сможете использовать приложение.",
+    'privacy.appDescription': "Легко находите и бронируйте услуги красоты",
+    'privacy.continue': "Продолжить",
+    'privacy.termsAgreement': "Нажимая кнопку продолжить, вы соглашаетесь с условиями использования и политикой конфиденциальности",
   },
 } as const;
 
