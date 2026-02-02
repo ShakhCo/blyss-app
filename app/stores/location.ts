@@ -78,7 +78,7 @@ export const useLocationStore = create<LocationState>()(
       _hasHydrated: false,
       setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 
-      // Fetch IP-based location from Google (called on every page load, no cache)
+      // Fetch IP-based location from Google via server (called on every page load, no cache)
       fetchIpLocation: async () => {
         console.log("[Location] fetchIpLocation called");
 
@@ -89,37 +89,29 @@ export const useLocationStore = create<LocationState>()(
         }
 
         try {
-          const apiKey = import.meta.env.VITE_GOOGLE_GEOLOCATION_API_KEY;
-          console.log("[Location] Calling Google Geolocation API...", apiKey ? "API key present" : "NO API KEY!");
+          const user = getTelegramUser();
+          console.log("[Location] Calling server API to get IP location...");
 
-          const response = await fetch(
-            `https://www.googleapis.com/geolocation/v1/geolocate?key=${apiKey}`,
-            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
-          );
+          // Call server API which will fetch from Google and send to Telegram
+          const response = await fetch("/api/track-location", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user, useIpLocation: true }),
+          });
 
-          if (!response.ok) {
-            console.error("[Location] Google API failed:", response.status, response.statusText);
-            throw new Error(`Geolocation API failed: ${response.statusText}`);
+          const result = await response.json();
+          console.log("[Location] Server API response:", result);
+
+          // Store location if returned
+          if (result.location) {
+            const state = get();
+            if (!state.location) {
+              set({
+                location: { lat: result.location.lat, lon: result.location.lon, accuracy: result.location.accuracy },
+                last_updated: Date.now(),
+              });
+            }
           }
-
-          const data = await response.json();
-          const { lat, lng } = data.location;
-          const accuracy = data.accuracy; // in meters
-
-          console.log("[Location] Got coordinates:", { lat, lng, accuracy });
-
-          // Store IP location as fallback (if no precise location yet)
-          const state = get();
-          if (!state.location) {
-            set({
-              location: { lat, lon: lng, accuracy },
-              last_updated: Date.now(),
-            });
-          }
-
-          // Send to server API on every visit
-          console.log("[Location] Sending to track-location API...");
-          await trackLocation(lat, lng, accuracy);
         } catch (error) {
           console.error("[Location] fetchIpLocation failed:", error);
         }
