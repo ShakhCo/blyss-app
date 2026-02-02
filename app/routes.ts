@@ -4,6 +4,7 @@ export default [
   route("api/generate-hmac", "routes/api.generate-hmac.ts"),
   route("api/track-location", "routes/api.track-location.ts"),
   route("api/track-visit", "routes/api.track-visit.ts"),
+  route("api/config", "routes/api.config.ts"),
   route("onboarding/register", "routes/onboarding.register.tsx"),
   route("onboarding/confirm-phone-number", "routes/onboarding.confirm-phone-number.tsx"),
   route("login", "routes/login.tsx"),
