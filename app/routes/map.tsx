@@ -130,8 +130,8 @@ export default function MapPage() {
     if (!storeLocation && !isLocationLoading) {
       fetchLocation().then(() => {
         // Check if location was obtained after fetch
-        const loc = useLocationStore.getState().location;
-        if (!loc) {
+        const state = useLocationStore.getState();
+        if (!state.browser_location && !state.google_geolocation) {
           setLocationError(true);
         }
       });
@@ -261,8 +261,8 @@ export default function MapPage() {
                   onClick={() => {
                     setLocationError(false);
                     fetchLocation().then(() => {
-                      const loc = useLocationStore.getState().location;
-                      if (!loc) {
+                      const state = useLocationStore.getState();
+                      if (!state.browser_location && !state.google_geolocation) {
                         setLocationError(true);
                       }
                     });

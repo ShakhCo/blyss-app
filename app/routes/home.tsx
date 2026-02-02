@@ -261,13 +261,13 @@ export default function Home() {
   // Show skeleton only if loading AND no cached data
   const showSkeleton = isLoadingBusinesses && cachedBusinesses.length === 0;
 
-  const fetchIpLocation = useLocationStore((state) => state.fetchIpLocation);
+  const fetchLocation = useLocationStore((state) => state.fetchLocation);
 
-  // Show bottom nav, clear onboarding data, and fetch IP location when home page mounts
+  // Show bottom nav, clear onboarding data, and fetch location when home page mounts
   useEffect(() => {
     bottomNav.show();
     clearOnboardingData();
-    fetchIpLocation();
+    fetchLocation();
   }, []);
 
   // Map businesses to FeaturedSalon format
