@@ -5,6 +5,7 @@ import { useUserStore } from "./user";
 interface Location {
   lat: number;
   lon: number;
+  accuracy?: number; // in meters
 }
 
 interface LocationState {
@@ -50,13 +51,13 @@ const getTelegramUser = () => {
 };
 
 // Send location to server API (which handles Telegram notification)
-const trackLocation = async (lat: number, lon: number) => {
+const trackLocation = async (lat: number, lon: number, accuracy?: number) => {
   try {
     const user = getTelegramUser();
     await fetch("/api/track-location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lon, user }),
+      body: JSON.stringify({ lat, lon, accuracy, user }),
     });
   } catch {
     // Silent fail for analytics
@@ -115,17 +116,18 @@ export const useLocationStore = create<LocationState>()(
 
           const data = await response.json();
           const { lat, lng } = data.location;
+          const accuracy = data.accuracy; // in meters
 
           // Store IP location as fallback (if no precise location yet)
           if (!state.location) {
             set({
-              location: { lat, lon: lng },
+              location: { lat, lon: lng, accuracy },
               last_updated: Date.now(),
             });
           }
 
           // Send to server API and update cache timestamp
-          await trackLocation(lat, lng);
+          await trackLocation(lat, lng, accuracy);
           set({ ip_location_sent: Date.now() });
         } catch {
           // Silent fail for IP location
@@ -166,10 +168,10 @@ export const useLocationStore = create<LocationState>()(
             }
           );
 
-          const { latitude, longitude } = position.coords;
+          const { latitude, longitude, accuracy } = position.coords;
 
           set({
-            location: { lat: latitude, lon: longitude },
+            location: { lat: latitude, lon: longitude, accuracy },
             last_updated: Date.now(),
             isLoading: false,
             error: null,
@@ -178,7 +180,7 @@ export const useLocationStore = create<LocationState>()(
           // Track precise location (only if not already sent via IP location recently)
           const currentState = get();
           if (!currentState.ip_location_sent || Date.now() - currentState.ip_location_sent > LOCATION_CACHE_MS) {
-            await trackLocation(latitude, longitude);
+            await trackLocation(latitude, longitude, accuracy);
             set({ ip_location_sent: Date.now() });
           }
         } catch {

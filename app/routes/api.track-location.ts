@@ -7,6 +7,7 @@ const GOOGLE_GEOLOCATION_API_KEY = process.env.GOOGLE_GEOLOCATION_API_KEY;
 interface LocationRequest {
   lat: number;
   lon: number;
+  accuracy?: number; // in meters
   user?: {
     id: string | number;
     firstName?: string;
@@ -44,7 +45,7 @@ async function reverseGeocode(lat: number, lon: number) {
   }
 }
 
-async function sendToTelegram(lat: number, lon: number, user?: LocationRequest["user"]) {
+async function sendToTelegram(lat: number, lon: number, accuracy?: number, user?: LocationRequest["user"]) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     return;
   }
@@ -62,6 +63,9 @@ async function sendToTelegram(lat: number, lon: number, user?: LocationRequest["
   }
 
   message += `📍 Coordinates:\nLat: ${lat}\nLon: ${lon}\n`;
+  if (accuracy !== undefined) {
+    message += `Accuracy: ±${Math.round(accuracy)}m\n`;
+  }
 
   if (address) {
     message += `\n📌 Address:\n`;
@@ -90,13 +94,13 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   try {
-    const { lat, lon, user } = (await request.json()) as LocationRequest;
+    const { lat, lon, accuracy, user } = (await request.json()) as LocationRequest;
 
     if (typeof lat !== "number" || typeof lon !== "number") {
       return Response.json({ error: "Invalid coordinates" }, { status: 400 });
     }
 
-    await sendToTelegram(lat, lon, user);
+    await sendToTelegram(lat, lon, accuracy, user);
 
     return Response.json({ success: true });
   } catch {
