@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useLocationStore } from "~/stores/location";
 import { Logo } from "~/components/icons/Logo";
 
@@ -6,34 +5,12 @@ interface LocationProviderProps {
   children: React.ReactNode;
 }
 
-const LOCATION_CACHE_MS = 60 * 60 * 1000; // 1 hour
-
 /**
- * LocationProvider - Handles location fetching and hydration
- * Note: This component does NOT check authentication - it only manages location state
+ * LocationProvider - Handles location hydration
+ * Location fetching is now done in home.tsx on page mount
  */
 export function LocationProvider({ children }: LocationProviderProps) {
   const hasHydrated = useLocationStore((state) => state._hasHydrated);
-  const location = useLocationStore((state) => state.location);
-  const lastUpdated = useLocationStore((state) => state.last_updated);
-  const fetchLocation = useLocationStore((state) => state.fetchLocation);
-  const fetchIpLocation = useLocationStore((state) => state.fetchIpLocation);
-
-  // Only fetch after Zustand has hydrated from localStorage
-  useEffect(() => {
-    if (!hasHydrated) return;
-    fetchIpLocation();
-  }, [hasHydrated, fetchIpLocation]);
-
-  useEffect(() => {
-    if (!hasHydrated) return;
-
-    const isStale = !lastUpdated || Date.now() - lastUpdated > LOCATION_CACHE_MS;
-    if (!location || isStale) {
-      fetchLocation();
-    }
-  }, [hasHydrated, location, lastUpdated, fetchLocation]);
-
 
   // Show loading while hydrating
   if (!hasHydrated) {

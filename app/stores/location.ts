@@ -5,18 +5,19 @@ import { useUserStore } from "./user";
 interface Location {
   lat: number;
   lon: number;
-  accuracy?: number; // in meters
+  accuracy?: number;
+  last_updated: number;
 }
 
 interface LocationState {
-  location: Location | null;
-  last_updated: number | null;
+  browser_location: Location | null;
+  google_geolocation: Location | null;
   isLoading: boolean;
   error: string | null;
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
   fetchLocation: () => Promise<void>;
-  fetchIpLocation: () => Promise<void>;
+  fetchGoogleGeolocation: () => Promise<void>;
 }
 
 const LOCATION_CACHE_MS = 60 * 60 * 1000; // 1 hour
@@ -24,15 +25,24 @@ const LOCATION_CACHE_MS = 60 * 60 * 1000; // 1 hour
 // TEST: Override location for distance testing (set to null to use real location)
 const TEST_LOCATION_OVERRIDE: { lat: number; lon: number } | null = null;
 
-// Selector that returns test location if override is set
+// Selector that returns the best available location (browser > google > null)
 export const useTestableLocation = () => {
-  const realLocation = useLocationStore((state) => state.location);
-  return TEST_LOCATION_OVERRIDE ?? realLocation;
+  const browserLocation = useLocationStore((state) => state.browser_location);
+  const googleLocation = useLocationStore((state) => state.google_geolocation);
+
+  if (TEST_LOCATION_OVERRIDE) return TEST_LOCATION_OVERRIDE;
+  if (browserLocation) return { lat: browserLocation.lat, lon: browserLocation.lon };
+  if (googleLocation) return { lat: googleLocation.lat, lon: googleLocation.lon };
+  return null;
 };
 
 // Non-hook version for use outside components (e.g., loaders)
 export const getTestableLocation = () => {
-  return TEST_LOCATION_OVERRIDE ?? useLocationStore.getState().location;
+  if (TEST_LOCATION_OVERRIDE) return TEST_LOCATION_OVERRIDE;
+  const state = useLocationStore.getState();
+  if (state.browser_location) return { lat: state.browser_location.lat, lon: state.browser_location.lon };
+  if (state.google_geolocation) return { lat: state.google_geolocation.lat, lon: state.google_geolocation.lon };
+  return null;
 };
 
 // Get Telegram user from user store
@@ -71,17 +81,86 @@ const trackLocation = async (lat: number, lon: number, accuracy?: number) => {
 export const useLocationStore = create<LocationState>()(
   persist(
     (set, get) => ({
-      location: null,
-      last_updated: null,
+      browser_location: null,
+      google_geolocation: null,
       isLoading: false,
       error: null,
       _hasHydrated: false,
       setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 
-      // Fetch IP-based location from Google (called on every page load, no cache)
-      // Calls Google API from client-side so client's IP is used for geolocation
-      fetchIpLocation: async () => {
-        console.log("[Location] fetchIpLocation called");
+      // Main location fetch function - follows the priority flow
+      fetchLocation: async () => {
+        console.log("[Location] fetchLocation called");
+
+        // Check if running on client
+        if (typeof window === "undefined") {
+          console.log("[Location] SSR - skipping");
+          return;
+        }
+
+        const state = get();
+
+        // Check if browser_location is fresh (within 1 hour)
+        if (state.browser_location) {
+          const age = Date.now() - state.browser_location.last_updated;
+          if (age < LOCATION_CACHE_MS) {
+            console.log("[Location] Browser location is fresh, using cached location");
+            // Still send to Telegram for tracking
+            await trackLocation(state.browser_location.lat, state.browser_location.lon, state.browser_location.accuracy);
+            return;
+          }
+          console.log("[Location] Browser location is stale, requesting new location");
+        }
+
+        // Check if browser Geolocation API is supported
+        if (!navigator.geolocation) {
+          console.log("[Location] Browser geolocation not supported, falling back to Google");
+          await get().fetchGoogleGeolocation();
+          return;
+        }
+
+        set({ isLoading: true, error: null });
+
+        try {
+          console.log("[Location] Requesting browser location...");
+          const position = await new Promise<GeolocationPosition>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0,
+              });
+            }
+          );
+
+          const { latitude, longitude, accuracy } = position.coords;
+          console.log("[Location] Browser location received:", { latitude, longitude, accuracy });
+
+          set({
+            browser_location: {
+              lat: latitude,
+              lon: longitude,
+              accuracy,
+              last_updated: Date.now(),
+            },
+            isLoading: false,
+            error: null,
+          });
+
+          // Send to Telegram
+          await trackLocation(latitude, longitude, accuracy);
+        } catch (error) {
+          console.log("[Location] Browser location denied or failed, falling back to Google");
+          set({ isLoading: false });
+
+          // User denied or error - fall back to Google Geolocation
+          await get().fetchGoogleGeolocation();
+        }
+      },
+
+      // Fetch IP-based location from Google Geolocation API
+      fetchGoogleGeolocation: async () => {
+        console.log("[Location] fetchGoogleGeolocation called");
 
         // Check if running on client
         if (typeof window === "undefined") {
@@ -117,82 +196,29 @@ export const useLocationStore = create<LocationState>()(
           const { lat, lng } = data.location;
           const accuracy = data.accuracy;
 
-          console.log("[Location] Got coordinates:", { lat, lng, accuracy });
-
-          // Store IP location as fallback (if no precise location yet)
-          const state = get();
-          if (!state.location) {
-            set({
-              location: { lat, lon: lng, accuracy },
-              last_updated: Date.now(),
-            });
-          }
-
-          // Send to server API for Telegram notification
-          console.log("[Location] Sending to track-location API...");
-          await trackLocation(lat, lng, accuracy);
-        } catch (error) {
-          console.error("[Location] fetchIpLocation failed:", error);
-        }
-      },
-
-      // Fetch precise location (browser geolocation, IP fallback already handled by fetchIpLocation)
-      fetchLocation: async () => {
-        const state = get();
-
-        // Skip if updated within cache interval (and it's precise location, not IP)
-        if (state.last_updated && Date.now() - state.last_updated < LOCATION_CACHE_MS) {
-          return;
-        }
-
-        // Check if running on client
-        if (typeof window === "undefined") {
-          set({ isLoading: false });
-          return;
-        }
-
-        // Check if browser Geolocation API is supported
-        if (!navigator.geolocation) {
-          set({ isLoading: false });
-          return;
-        }
-
-        set({ isLoading: true, error: null });
-
-        try {
-          const position = await new Promise<GeolocationPosition>(
-            (resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0,
-              });
-            }
-          );
-
-          const { latitude, longitude, accuracy } = position.coords;
+          console.log("[Location] Google geolocation received:", { lat, lng, accuracy });
 
           set({
-            location: { lat: latitude, lon: longitude, accuracy },
-            last_updated: Date.now(),
-            isLoading: false,
-            error: null,
+            google_geolocation: {
+              lat,
+              lon: lng,
+              accuracy,
+              last_updated: Date.now(),
+            },
           });
 
-          // Track precise location on every visit
-          await trackLocation(latitude, longitude, accuracy);
-        } catch {
-          set({ isLoading: false });
-          // IP location is already set by fetchIpLocation, so we're good
+          // Send to Telegram
+          await trackLocation(lat, lng, accuracy);
+        } catch (error) {
+          console.error("[Location] fetchGoogleGeolocation failed:", error);
         }
       },
     }),
     {
       name: "blyss-location",
       partialize: (state) => ({
-        location: state.location,
-        last_updated: state.last_updated,
-        // Don't persist _hasHydrated
+        browser_location: state.browser_location,
+        google_geolocation: state.google_geolocation,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
