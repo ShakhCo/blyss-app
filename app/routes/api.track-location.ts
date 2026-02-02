@@ -32,12 +32,13 @@ async function getIpLocation(): Promise<{ lat: number; lon: number; accuracy: nu
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
     );
 
+    const data = await response.json();
+
     if (!response.ok) {
-      console.error("[API] Google Geolocation API failed:", response.status, response.statusText);
+      console.error("[API] Google Geolocation API failed:", response.status, response.statusText, JSON.stringify(data));
       return null;
     }
 
-    const data = await response.json();
     console.log("[API] Google Geolocation response:", data);
 
     return {
