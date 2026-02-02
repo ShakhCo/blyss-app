@@ -29,7 +29,5 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export async function loader() {
-  return (
-    'BLYSS'
-  )
+  return Response.json({ status: "OK" });
 }
