@@ -3,28 +3,22 @@ import { useUserStore } from "~/stores/user-store";
 
 const API_BASE_URL = "https://api.blyss.uz";
 
-// API Secret for HMAC signature
-const API_SECRET = import.meta.env.VITE_API_SECRET || "";
-
 /**
- * Generate HMAC-SHA256 signature
+ * Get HMAC signature from server-side API
  */
-async function generateHmacSignature(message: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(message);
+async function getHmacSignature(body: string, timestamp: string): Promise<string> {
+  const response = await fetch("/api/generate-hmac", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body, timestamp }),
+  });
 
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyData,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
+  if (!response.ok) {
+    throw new Error("Failed to generate HMAC signature");
+  }
 
-  const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
-  const hashArray = Array.from(new Uint8Array(signature));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  const data = await response.json();
+  return data.signature;
 }
 
 /**
@@ -53,17 +47,18 @@ apiClient.interceptors.request.use(
     // For FormData (file uploads), use empty string
     const isFormData = typeof FormData !== "undefined" && config.data instanceof FormData;
     const body = isFormData ? "" : config.data ? JSON.stringify(config.data) : "";
-    const message = body + timestamp;
 
     // For FormData, delete Content-Type header so Axios sets it with correct boundary
     if (isFormData) {
       delete config.headers["Content-Type"];
     }
 
-    if (API_SECRET) {
-      const signature = await generateHmacSignature(message, API_SECRET);
+    try {
+      const signature = await getHmacSignature(body, timestamp);
       config.headers["X-Timestamp"] = timestamp;
       config.headers["X-Signature"] = signature;
+    } catch (error) {
+      console.error("Failed to get HMAC signature:", error);
     }
 
     return config;
@@ -101,13 +96,14 @@ apiClient.interceptors.response.use(
             Authorization: `Bearer ${refresh_token}`,
           };
 
-          if (API_SECRET) {
+          try {
             const timestamp = Math.floor(Date.now() / 1000).toString();
             const body = "{}";
-            const message = body + timestamp;
-            const signature = await generateHmacSignature(message, API_SECRET);
+            const signature = await getHmacSignature(body, timestamp);
             refreshHeaders["X-Timestamp"] = timestamp;
             refreshHeaders["X-Signature"] = signature;
+          } catch (error) {
+            console.error("Failed to get HMAC signature for refresh:", error);
           }
 
           const response = await axios.post(
@@ -167,13 +163,14 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   }
 
   // Add HMAC signature
-  if (API_SECRET) {
+  try {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const body = options.body instanceof FormData ? "" : ((options.body as string) || "");
-    const message = body + timestamp;
-    const signature = await generateHmacSignature(message, API_SECRET);
+    const signature = await getHmacSignature(body, timestamp);
     headers["X-Timestamp"] = timestamp;
     headers["X-Signature"] = signature;
+  } catch (error) {
+    console.error("Failed to get HMAC signature:", error);
   }
 
   return fetch(url, {
