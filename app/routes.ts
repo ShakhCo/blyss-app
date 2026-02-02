@@ -18,3 +18,4 @@ export default [
   route("map", "routes/map.tsx"),
   route("profile", "routes/profile.tsx"),
 ] satisfies RouteConfig;
+
