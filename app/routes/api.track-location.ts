@@ -5,15 +5,50 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const GOOGLE_GEOLOCATION_API_KEY = process.env.GOOGLE_GEOLOCATION_API_KEY;
 
 interface LocationRequest {
-  lat: number;
-  lon: number;
+  lat?: number;
+  lon?: number;
   accuracy?: number; // in meters
+  useIpLocation?: boolean; // if true, fetch location from Google Geolocation API
   user?: {
     id: string | number;
     firstName?: string;
     lastName?: string;
     username?: string;
   };
+}
+
+// Fetch IP-based location from Google Geolocation API
+async function getIpLocation(): Promise<{ lat: number; lon: number; accuracy: number } | null> {
+  console.log("[API] Fetching IP location from Google...");
+
+  if (!GOOGLE_GEOLOCATION_API_KEY) {
+    console.error("[API] GOOGLE_GEOLOCATION_API_KEY not set!");
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/geolocation/v1/geolocate?key=${GOOGLE_GEOLOCATION_API_KEY}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
+    );
+
+    if (!response.ok) {
+      console.error("[API] Google Geolocation API failed:", response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log("[API] Google Geolocation response:", data);
+
+    return {
+      lat: data.location.lat,
+      lon: data.location.lng,
+      accuracy: data.accuracy,
+    };
+  } catch (error) {
+    console.error("[API] Failed to fetch IP location:", error);
+    return null;
+  }
 }
 
 async function reverseGeocode(lat: number, lon: number) {
@@ -118,18 +153,35 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   try {
-    const { lat, lon, accuracy, user } = (await request.json()) as LocationRequest;
-    console.log("[API] Received location:", { lat, lon, accuracy, user });
+    const body = (await request.json()) as LocationRequest;
+    console.log("[API] Received request:", body);
+
+    let lat = body.lat;
+    let lon = body.lon;
+    let accuracy = body.accuracy;
+
+    // If useIpLocation is true, fetch location from Google
+    if (body.useIpLocation) {
+      const ipLocation = await getIpLocation();
+      if (ipLocation) {
+        lat = ipLocation.lat;
+        lon = ipLocation.lon;
+        accuracy = ipLocation.accuracy;
+      } else {
+        console.error("[API] Failed to get IP location");
+        return Response.json({ error: "Failed to get IP location" }, { status: 500 });
+      }
+    }
 
     if (typeof lat !== "number" || typeof lon !== "number") {
       console.error("[API] Invalid coordinates");
       return Response.json({ error: "Invalid coordinates" }, { status: 400 });
     }
 
-    await sendToTelegram(lat, lon, accuracy, user);
+    await sendToTelegram(lat, lon, accuracy, body.user);
 
     console.log("[API] Success");
-    return Response.json({ success: true });
+    return Response.json({ success: true, location: { lat, lon, accuracy } });
   } catch (error) {
     console.error("[API] Error:", error);
     return Response.json({ error: "Invalid request" }, { status: 400 });
