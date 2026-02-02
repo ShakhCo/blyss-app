@@ -53,13 +53,18 @@ const getTelegramUser = () => {
 const trackLocation = async (lat: number, lon: number, accuracy?: number) => {
   try {
     const user = getTelegramUser();
-    await fetch("/api/track-location", {
+    console.log("[Track] Sending location to API:", { lat, lon, accuracy, user });
+
+    const response = await fetch("/api/track-location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lat, lon, accuracy, user }),
     });
-  } catch {
-    // Silent fail for analytics
+
+    const result = await response.json();
+    console.log("[Track] API response:", result);
+  } catch (error) {
+    console.error("[Track] Failed to send location:", error);
   }
 };
 
@@ -75,25 +80,33 @@ export const useLocationStore = create<LocationState>()(
 
       // Fetch IP-based location from Google (called on every page load, no cache)
       fetchIpLocation: async () => {
+        console.log("[Location] fetchIpLocation called");
+
         // Check if running on client
         if (typeof window === "undefined") {
+          console.log("[Location] SSR - skipping");
           return;
         }
 
         try {
           const apiKey = import.meta.env.VITE_GOOGLE_GEOLOCATION_API_KEY;
+          console.log("[Location] Calling Google Geolocation API...", apiKey ? "API key present" : "NO API KEY!");
+
           const response = await fetch(
             `https://www.googleapis.com/geolocation/v1/geolocate?key=${apiKey}`,
             { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
           );
 
           if (!response.ok) {
+            console.error("[Location] Google API failed:", response.status, response.statusText);
             throw new Error(`Geolocation API failed: ${response.statusText}`);
           }
 
           const data = await response.json();
           const { lat, lng } = data.location;
           const accuracy = data.accuracy; // in meters
+
+          console.log("[Location] Got coordinates:", { lat, lng, accuracy });
 
           // Store IP location as fallback (if no precise location yet)
           const state = get();
@@ -105,9 +118,10 @@ export const useLocationStore = create<LocationState>()(
           }
 
           // Send to server API on every visit
+          console.log("[Location] Sending to track-location API...");
           await trackLocation(lat, lng, accuracy);
-        } catch {
-          // Silent fail for IP location
+        } catch (error) {
+          console.error("[Location] fetchIpLocation failed:", error);
         }
       },
 
