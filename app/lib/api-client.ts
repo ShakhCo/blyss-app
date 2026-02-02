@@ -4,7 +4,7 @@ import { useUserStore } from "~/stores/user-store";
 const API_BASE_URL = "https://api.blyss.uz";
 
 // API Secret for HMAC signature
-const API_SECRET = import.meta.env.VITE_API_SECRET || "eyJvcmciOiI1YjNjZTM1OTc4NcTExMTAwMDFjZjYyNDgiLCJpZCI6IjhkYTYyNzdmYzMzZjQ3ZWFiZDUzN2FiZGUyOTlhNGI5Ii*wiaCcd6Im11cm11cjY0In5";
+const API_SECRET = import.meta.env.VITE_API_SECRET || "";
 
 /**
  * Generate HMAC-SHA256 signature
