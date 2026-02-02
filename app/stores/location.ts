@@ -78,7 +78,8 @@ export const useLocationStore = create<LocationState>()(
       _hasHydrated: false,
       setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 
-      // Fetch IP-based location from Google via server (called on every page load, no cache)
+      // Fetch IP-based location from Google (called on every page load, no cache)
+      // Calls Google API from client-side so client's IP is used for geolocation
       fetchIpLocation: async () => {
         console.log("[Location] fetchIpLocation called");
 
@@ -89,29 +90,47 @@ export const useLocationStore = create<LocationState>()(
         }
 
         try {
-          const user = getTelegramUser();
-          console.log("[Location] Calling server API to get IP location...");
+          // First, get the API key from server
+          console.log("[Location] Fetching API key from server...");
+          const configResponse = await fetch("/api/config");
+          const config = await configResponse.json();
 
-          // Call server API which will fetch from Google and send to Telegram
-          const response = await fetch("/api/track-location", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user, useIpLocation: true }),
-          });
-
-          const result = await response.json();
-          console.log("[Location] Server API response:", result);
-
-          // Store location if returned
-          if (result.location) {
-            const state = get();
-            if (!state.location) {
-              set({
-                location: { lat: result.location.lat, lon: result.location.lon, accuracy: result.location.accuracy },
-                last_updated: Date.now(),
-              });
-            }
+          if (!config.googleGeolocationApiKey) {
+            console.error("[Location] No API key returned from server");
+            return;
           }
+
+          // Call Google Geolocation API from client (uses client's IP)
+          console.log("[Location] Calling Google Geolocation API from client...");
+          const response = await fetch(
+            `https://www.googleapis.com/geolocation/v1/geolocate?key=${config.googleGeolocationApiKey}`,
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error("[Location] Google API failed:", response.status, errorData);
+            return;
+          }
+
+          const data = await response.json();
+          const { lat, lng } = data.location;
+          const accuracy = data.accuracy;
+
+          console.log("[Location] Got coordinates:", { lat, lng, accuracy });
+
+          // Store IP location as fallback (if no precise location yet)
+          const state = get();
+          if (!state.location) {
+            set({
+              location: { lat, lon: lng, accuracy },
+              last_updated: Date.now(),
+            });
+          }
+
+          // Send to server API for Telegram notification
+          console.log("[Location] Sending to track-location API...");
+          await trackLocation(lat, lng, accuracy);
         } catch (error) {
           console.error("[Location] fetchIpLocation failed:", error);
         }
