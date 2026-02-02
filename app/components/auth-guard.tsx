@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect } from "react";
 import { useLocationStore } from "~/stores/location";
 import { Logo } from "~/components/icons/Logo";
 
@@ -6,37 +6,36 @@ interface LocationProviderProps {
   children: React.ReactNode;
 }
 
+const LOCATION_CACHE_MS = 60 * 60 * 1000; // 1 hour
+
 /**
  * LocationProvider - Handles location fetching and hydration
  * Note: This component does NOT check authentication - it only manages location state
  */
 export function LocationProvider({ children }: LocationProviderProps) {
+  const hasHydrated = useLocationStore((state) => state._hasHydrated);
+  const location = useLocationStore((state) => state.location);
+  const lastUpdated = useLocationStore((state) => state.last_updated);
   const fetchLocation = useLocationStore((state) => state.fetchLocation);
   const fetchIpLocation = useLocationStore((state) => state.fetchIpLocation);
-  const [isHydrated, setIsHydrated] = useState(false);
-  const hasFetchedLocationRef = useRef(false);
 
-  // Wait for initial hydration
+  // Only fetch after Zustand has hydrated from localStorage
   useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
-  // Fetch IP location once on page load (for analytics)
-  useEffect(() => {
-    if (!isHydrated) return;
+    if (!hasHydrated) return;
     fetchIpLocation();
-  }, [isHydrated, fetchIpLocation]);
+  }, [hasHydrated, fetchIpLocation]);
 
-  // Fetch precise user location for all visitors
   useEffect(() => {
-    if (!isHydrated || hasFetchedLocationRef.current) return;
+    if (!hasHydrated) return;
 
-    hasFetchedLocationRef.current = true;
-    fetchLocation();
-  }, [isHydrated, fetchLocation]);
+    const isStale = !lastUpdated || Date.now() - lastUpdated > LOCATION_CACHE_MS;
+    if (!location || isStale) {
+      fetchLocation();
+    }
+  }, [hasHydrated, location, lastUpdated, fetchLocation]);
 
-  // Show brief loading screen while hydrating
-  if (!isHydrated) {
+  // Show loading while hydrating
+  if (!hasHydrated) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-between py-10">
         <div></div>
@@ -54,8 +53,3 @@ export function LocationProvider({ children }: LocationProviderProps) {
 
   return <>{children}</>;
 }
-
-/**
- * @deprecated Use LocationProvider instead. This export is kept for backwards compatibility.
- */
-export const AuthGuard = LocationProvider;

@@ -13,6 +13,8 @@ interface LocationState {
   ip_location_sent: number | null;
   isLoading: boolean;
   error: string | null;
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
   fetchLocation: () => Promise<void>;
   fetchIpLocation: () => Promise<void>;
 }
@@ -69,6 +71,8 @@ export const useLocationStore = create<LocationState>()(
       ip_location_sent: null,
       isLoading: false,
       error: null,
+      _hasHydrated: false,
+      setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 
       // Fetch IP-based location from Google (called on page load, cached for 1 hour)
       fetchIpLocation: async () => {
@@ -156,6 +160,13 @@ export const useLocationStore = create<LocationState>()(
             isLoading: false,
             error: null,
           });
+
+          // Track precise location (only if not already sent via IP location recently)
+          const currentState = get();
+          if (!currentState.ip_location_sent || Date.now() - currentState.ip_location_sent > LOCATION_CACHE_MS) {
+            await trackLocation(latitude, longitude);
+            set({ ip_location_sent: Date.now() });
+          }
         } catch {
           set({ isLoading: false });
           // IP location is already set by fetchIpLocation, so we're good
@@ -168,7 +179,11 @@ export const useLocationStore = create<LocationState>()(
         location: state.location,
         last_updated: state.last_updated,
         ip_location_sent: state.ip_location_sent,
+        // Don't persist _hasHydrated
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

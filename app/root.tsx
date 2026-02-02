@@ -13,7 +13,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Logo } from "./components/icons/Logo";
-import { AuthGuard } from "./components/auth-guard";
+import { LocationProvider } from "./components/auth-guard";
 import { queryClient } from "~/lib/query-client";
 import { useUserStore } from "~/stores/user";
 
@@ -176,9 +176,9 @@ function AppContent({ tmaReady, user }: { tmaReady: boolean; user: TmaUser }) {
       </div>
 
       <QueryClientProvider client={queryClient}>
-        <AuthGuard>
+        <LocationProvider>
           <Outlet context={{ tmaReady, user } as TmaContext} />
-        </AuthGuard>
+        </LocationProvider>
       </QueryClientProvider>
     </>
   );
