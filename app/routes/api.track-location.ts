@@ -46,11 +46,20 @@ async function reverseGeocode(lat: number, lon: number) {
 }
 
 async function sendToTelegram(lat: number, lon: number, accuracy?: number, user?: LocationRequest["user"]) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  console.log("[Telegram] sendToTelegram called:", { lat, lon, accuracy, user });
+
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error("[Telegram] TELEGRAM_BOT_TOKEN not set!");
+    return;
+  }
+
+  if (!TELEGRAM_CHAT_ID) {
+    console.error("[Telegram] TELEGRAM_CHAT_ID not set!");
     return;
   }
 
   const address = await reverseGeocode(lat, lon);
+  console.log("[Telegram] Reverse geocode result:", address);
 
   let message = `📍 New visitor location:\n\n`;
 
@@ -78,32 +87,51 @@ async function sendToTelegram(lat: number, lon: number, accuracy?: number, user?
 
   message += `\n🗺 Maps: https://www.google.com/maps?q=${lat},${lon}`;
 
-  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: message,
-    }),
-  });
+  console.log("[Telegram] Sending message to Telegram...");
+
+  try {
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+      }),
+    });
+
+    const result = await telegramResponse.json();
+    if (!telegramResponse.ok) {
+      console.error("[Telegram] API error:", result);
+    } else {
+      console.log("[Telegram] Message sent successfully:", result.ok);
+    }
+  } catch (error) {
+    console.error("[Telegram] Failed to send message:", error);
+  }
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  console.log("[API] track-location action called");
+
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
   try {
     const { lat, lon, accuracy, user } = (await request.json()) as LocationRequest;
+    console.log("[API] Received location:", { lat, lon, accuracy, user });
 
     if (typeof lat !== "number" || typeof lon !== "number") {
+      console.error("[API] Invalid coordinates");
       return Response.json({ error: "Invalid coordinates" }, { status: 400 });
     }
 
     await sendToTelegram(lat, lon, accuracy, user);
 
+    console.log("[API] Success");
     return Response.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("[API] Error:", error);
     return Response.json({ error: "Invalid request" }, { status: 400 });
   }
 }
