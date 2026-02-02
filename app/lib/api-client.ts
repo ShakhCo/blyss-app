@@ -1,5 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
-import { useUserStore } from "~/stores/user-store";
+import { useUserStore, isTokenExpired } from "~/stores/user-store";
 
 const API_BASE_URL = "https://api.blyss.uz";
 
@@ -31,13 +31,81 @@ export const apiClient = axios.create({
   },
 });
 
+// Flag to prevent multiple concurrent refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Proactively refresh token if expired
+ * Returns new access_token or null if refresh failed
+ */
+async function proactiveTokenRefresh(): Promise<string | null> {
+  const state = useUserStore.getState();
+  const { access_token, refresh_token, expires_at } = state;
+
+  // No token or not expired - nothing to do
+  if (!access_token || !isTokenExpired(expires_at)) {
+    return access_token;
+  }
+
+  // No refresh token - can't refresh
+  if (!refresh_token) {
+    return null;
+  }
+
+  // If already refreshing, wait for the existing refresh to complete
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const refreshHeaders: Record<string, string> = {
+        Authorization: `Bearer ${refresh_token}`,
+      };
+
+      try {
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const body = "{}";
+        const signature = await getHmacSignature(body, timestamp);
+        refreshHeaders["X-Timestamp"] = timestamp;
+        refreshHeaders["X-Signature"] = signature;
+      } catch {
+        // HMAC signature failed for refresh
+      }
+
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/refresh`,
+        {},
+        { headers: refreshHeaders }
+      );
+
+      const { access_token: newAccessToken, refresh_token: newRefreshToken, expires_at: newExpiresAt } =
+        response.data;
+
+      useUserStore.getState().setTokens(newAccessToken, newRefreshToken, newExpiresAt);
+      return newAccessToken;
+    } catch {
+      // Refresh failed - clear user data
+      useUserStore.getState().clearUser();
+      return null;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 /**
  * Request interceptor to add authorization header and HMAC signature
  */
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    // Add access_token from store to authorization header
-    const access_token = useUserStore.getState().access_token;
+    // Proactively refresh token if expired before making request
+    const access_token = await proactiveTokenRefresh();
     if (access_token) {
       config.headers.Authorization = `Bearer ${access_token}`;
     }
@@ -57,8 +125,8 @@ apiClient.interceptors.request.use(
       const signature = await getHmacSignature(body, timestamp);
       config.headers["X-Timestamp"] = timestamp;
       config.headers["X-Signature"] = signature;
-    } catch (error) {
-      console.error("Failed to get HMAC signature:", error);
+    } catch {
+      // HMAC signature failed - request will likely fail on backend
     }
 
     return config;
@@ -102,8 +170,8 @@ apiClient.interceptors.response.use(
             const signature = await getHmacSignature(body, timestamp);
             refreshHeaders["X-Timestamp"] = timestamp;
             refreshHeaders["X-Signature"] = signature;
-          } catch (error) {
-            console.error("Failed to get HMAC signature for refresh:", error);
+          } catch {
+            // HMAC signature failed for refresh
           }
 
           const response = await axios.post(
@@ -169,8 +237,8 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
     const signature = await getHmacSignature(body, timestamp);
     headers["X-Timestamp"] = timestamp;
     headers["X-Signature"] = signature;
-  } catch (error) {
-    console.error("Failed to get HMAC signature:", error);
+  } catch {
+    // HMAC signature failed - request will likely fail on backend
   }
 
   return fetch(url, {

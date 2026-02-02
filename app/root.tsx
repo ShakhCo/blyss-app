@@ -67,10 +67,12 @@ export default function App() {
   const setUser = useUserStore((state) => state.setUser);
 
   useEffect(() => {
-    // Initialize Eruda console for debugging
-    // import("eruda").then((eruda) => {
-    //   eruda.default.init();
-    // });
+    // Initialize Eruda console for debugging (development only)
+    if (import.meta.env.DEV) {
+      import("eruda").then((eruda) => {
+        eruda.default.init();
+      });
+    }
 
     // Initialize TMA SDK only on client side
     import("@tma.js/sdk-react").then(async ({ init, backButton, retrieveLaunchParams, viewport, swipeBehavior }) => {
@@ -118,9 +120,8 @@ export default function App() {
             photo_url: tgUser.photo_url,
           });
         }
-      } catch (e) {
+      } catch {
         // Not in Telegram context, continue without user data
-        console.log("TMA init error:", e);
       }
       setTmaReady(true);
     });

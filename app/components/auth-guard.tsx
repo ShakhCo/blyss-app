@@ -2,11 +2,15 @@ import { useEffect, useState, useRef } from "react";
 import { useLocationStore } from "~/stores/location";
 import { Logo } from "~/components/icons/Logo";
 
-interface AuthGuardProps {
+interface LocationProviderProps {
   children: React.ReactNode;
 }
 
-export function AuthGuard({ children }: AuthGuardProps) {
+/**
+ * LocationProvider - Handles location fetching and hydration
+ * Note: This component does NOT check authentication - it only manages location state
+ */
+export function LocationProvider({ children }: LocationProviderProps) {
   const fetchLocation = useLocationStore((state) => state.fetchLocation);
   const fetchIpLocation = useLocationStore((state) => state.fetchIpLocation);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -28,7 +32,6 @@ export function AuthGuard({ children }: AuthGuardProps) {
     if (!isHydrated || hasFetchedLocationRef.current) return;
 
     hasFetchedLocationRef.current = true;
-    console.log("[AuthGuard] Fetching location for visitor...");
     fetchLocation();
   }, [isHydrated, fetchLocation]);
 
@@ -51,3 +54,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   return <>{children}</>;
 }
+
+/**
+ * @deprecated Use LocationProvider instead. This export is kept for backwards compatibility.
+ */
+export const AuthGuard = LocationProvider;
