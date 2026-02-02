@@ -1,16 +1,20 @@
 import { useState, useEffect } from "react";
 import { useOutletContext, useNavigate, useBlocker } from "react-router";
 import { Button } from "@heroui/react";
-import { bookingCart } from "~/stores/booking";
+import { bookingCart, type BookingService } from "~/stores/booking";
 import { BottomSheet } from "~/components/BottomSheet";
 import { useI18nStore } from "~/stores/i18n-store";
 import type { SalonContext } from "./salon";
+import type { MultilingualText } from "~/lib/business-api";
 
 type ServiceType = {
   id: string;
   name: string;
+  nameMultilingual?: MultilingualText;
   duration: string;
+  durationMinutes?: number;
   price: string;
+  priceNumber?: number;
   category: string;
 };
 
@@ -34,7 +38,18 @@ export default function SalonServices() {
     closeServiceModal();
     bookingCart.clear();
     bookingCart.setSalon(salon.id, salon.name);
-    bookingCart.addService(service);
+    // Create BookingService with all required properties
+    const bookingService: BookingService = {
+      id: service.id,
+      name: service.name,
+      nameMultilingual: service.nameMultilingual,
+      duration: service.duration,
+      durationMinutes: service.durationMinutes,
+      price: service.price,
+      priceNumber: service.priceNumber,
+      category: service.category,
+    };
+    bookingCart.addService(bookingService);
     navigate(`/booking?salonId=${salon.id}&serviceId=${service.id}`);
   };
 
