@@ -201,6 +201,11 @@ export default function SalonPage() {
     stylist: "all",
   });
 
+  // Touch tracking for tab swipe
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchMoveRef = useRef<{ x: number; y: number } | null>(null);
+  const isHorizontalSwipeRef = useRef(false);
+
   // About section state
   const [isHoursExpanded, setIsHoursExpanded] = useState(false);
 
@@ -289,6 +294,56 @@ export default function SalonPage() {
   const handleTabClick = (index: number) => {
     setSwipeDirection(index > activeTabIndex ? 1 : -1);
     setActiveTabIndex(index);
+  };
+
+  // Touch event handlers for tab swipe
+  const handleTabTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    touchMoveRef.current = null;
+    isHorizontalSwipeRef.current = false;
+  };
+
+  const handleTabTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    touchMoveRef.current = { x: currentX, y: currentY };
+
+    // Determine if this is a horizontal swipe on first significant movement
+    if (!isHorizontalSwipeRef.current) {
+      const deltaX = Math.abs(currentX - touchStartRef.current.x);
+      const deltaY = Math.abs(currentY - touchStartRef.current.y);
+
+      // If horizontal movement is greater, it's a swipe
+      if (deltaX > 10 && deltaX > deltaY * 1.5) {
+        isHorizontalSwipeRef.current = true;
+      }
+    }
+  };
+
+  const handleTabTouchEnd = () => {
+    if (!touchStartRef.current || !touchMoveRef.current) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    if (isHorizontalSwipeRef.current) {
+      const deltaX = touchMoveRef.current.x - touchStartRef.current.x;
+      const threshold = 50;
+
+      if (deltaX < -threshold && activeTabIndex < tabs.length - 1) {
+        setSwipeDirection(1);
+        setActiveTabIndex(activeTabIndex + 1);
+      } else if (deltaX > threshold && activeTabIndex > 0) {
+        setSwipeDirection(-1);
+        setActiveTabIndex(activeTabIndex - 1);
+      }
+    }
+
+    touchStartRef.current = null;
+    touchMoveRef.current = null;
+    isHorizontalSwipeRef.current = false;
   };
 
   // Service modal handlers
@@ -743,7 +798,7 @@ export default function SalonPage() {
 
         {/* Tab Content with swipe */}
         <div
-          className="flex-1 min-h-0 overflow-hidden"
+          className="flex-1 min-h-0 overflow-hidden flex flex-col"
           ref={containerRef}
         >
           <AnimatePresence initial={false} mode="popLayout" custom={swipeDirection}>
@@ -759,29 +814,11 @@ export default function SalonPage() {
                 exit: (dir: number) => ({ x: dir > 0 ? "-100%" : "100%", opacity: 0 }),
               }}
               transition={{ x: { type: "tween", duration: 0.3, ease: [0.32, 0.72, 0, 1] }, opacity: { duration: 0.2 } }}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(event, info) => {
-                const threshold = 50;
-                const { offset, velocity } = info;
-
-                if (offset.x < -threshold || velocity.x < -500) {
-                  // Swipe left - next tab
-                  if (activeTabIndex < tabs.length - 1) {
-                    setSwipeDirection(1);
-                    setActiveTabIndex(activeTabIndex + 1);
-                  }
-                } else if (offset.x > threshold || velocity.x > 500) {
-                  // Swipe right - previous tab
-                  if (activeTabIndex > 0) {
-                    setSwipeDirection(-1);
-                    setActiveTabIndex(activeTabIndex - 1);
-                  }
-                }
-              }}
-              className="h-full overflow-y-auto pb-32"
-              style={{ touchAction: "pan-y" }}
+              onTouchStart={handleTabTouchStart}
+              onTouchMove={handleTabTouchMove}
+              onTouchEnd={handleTabTouchEnd}
+              className="w-full flex-1 overflow-y-auto"
+              style={{ touchAction: "pan-y pinch-zoom" }}
             >
               {tabContents[activeTabIndex]}
             </motion.div>

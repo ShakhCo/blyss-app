@@ -1,4 +1,4 @@
-import { type PropsWithChildren, useEffect } from "react";
+import { type PropsWithChildren, useEffect, useState, useRef } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 import { backButton, useSignal, viewport } from "@tma.js/sdk-react";
 import { Logo } from "./icons/Logo";
@@ -6,6 +6,8 @@ import { BottomNav } from "./BottomNav";
 import { useBottomNavStore } from "~/stores/bottomNav";
 import { useScrollRestoration } from "~/hooks/useScrollRestoration";
 import { SafeAreaProvider } from "~/contexts/safe-area";
+import { useSafeAreaValues } from "~/hooks/useSafeAreaValues";
+import { Map } from "lucide-react";
 
 type TmaContext = {
   tmaReady: boolean;
@@ -35,14 +37,11 @@ export function AppLayout({
   const isBottomNavVisible = useBottomNavStore((state) => state.isVisible);
   const scrollRef = useScrollRestoration();
 
-  // Get safe area insets from Telegram viewport
-  const safeAreaInsets = useSignal(viewport.safeAreaInsets);
-  const safeAreaValue = {
-    top: safeAreaInsets?.top ?? 0,
-    bottom: safeAreaInsets?.bottom ?? 0,
-    left: safeAreaInsets?.left ?? 0,
-    right: safeAreaInsets?.right ?? 0,
-  };
+  const { safeAreaValue } = useSafeAreaValues()
+
+  // Scroll direction tracking for Map button
+  const [isMapButtonVisible, setIsMapButtonVisible] = useState(true);
+  const lastScrollY = useRef(0);
 
   // Handle Telegram back button
   useEffect(() => {
@@ -60,6 +59,35 @@ export function AppLayout({
     }
     backButton.hide();
   }, [back, onBack, navigate, tmaReady]);
+
+  // Calculate bottom nav height: h-16 (64px) + safe area bottom + margin
+  const bottomNavHeight = 64 + (safeAreaValue.bottom || 10) + 12;
+
+  // Track scroll direction
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return;
+
+    const handleScroll = () => {
+      const currentScrollY = scrollElement.scrollTop;
+      const scrollDiff = currentScrollY - lastScrollY.current;
+
+      // Only trigger if scrolled more than 5px to avoid jitter
+      if (Math.abs(scrollDiff) > 5) {
+        if (scrollDiff > 0) {
+          // Scrolling down - hide button
+          setIsMapButtonVisible(false);
+        } else {
+          // Scrolling up - show button
+          setIsMapButtonVisible(true);
+        }
+        lastScrollY.current = currentScrollY;
+      }
+    };
+
+    scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollElement.removeEventListener("scroll", handleScroll);
+  }, [scrollRef]);
 
   if (removeHeader) {
     return (
@@ -101,6 +129,27 @@ export function AppLayout({
             </div>
           </div>
         </div>
+
+
+        {/* Floating Map Button */}
+        {isBottomNavVisible && (
+          <div
+            className="fixed left-0 right-0 z-40 flex justify-center pointer-events-none transition-all duration-300 ease-out"
+            style={{
+              bottom: bottomNavHeight,
+              opacity: isMapButtonVisible ? 1 : 0,
+              transform: isMapButtonVisible ? "translateY(0)" : "translateY(20px)",
+            }}
+          >
+            <button
+              onClick={() => navigate("/map")}
+              className="flex items-center gap-2 bg-primary border border-primary/10 text-white px-4 py-3 rounded-full shadow-xl text-base pointer-events-auto"
+            >
+              <Map size={22} strokeWidth={1.3} />
+              Map
+            </button>
+          </div>
+        )}
 
         {/* Fixed Footer with Safe Area (BottomNav handles its own padding) */}
         <BottomNav />

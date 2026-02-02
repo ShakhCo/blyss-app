@@ -2,6 +2,7 @@ import { NavLink } from "react-router";
 import { Home, Search, CalendarDays, MessageCircle, User } from "lucide-react";
 import { useBottomNavStore } from "~/stores/bottomNav";
 import { useSignal, viewport } from "@tma.js/sdk-react";
+import { useSafeAreaValues } from "~/hooks/useSafeAreaValues";
 
 interface NavItem {
   id: string;
@@ -46,13 +47,17 @@ const navItems: NavItem[] = [
 export function BottomNav() {
   const isVisible = useBottomNavStore((state) => state.isVisible);
   const safeAreaInsets = useSignal(viewport.safeAreaInsets);
+  const { safeAreaValue } = useSafeAreaValues()
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-4 transition-all duration-300 ease-out"
+      className="fixed bottom-0 left-0 right-0 z-50 transition-all duration-300 ease-out"
       style={{
         transform: isVisible ? "translateY(0)" : "translateY(100%)",
         opacity: isVisible ? 1 : 0,
+        paddingBottom: safeAreaValue.bottom ? safeAreaValue.bottom : 10,
+        paddingLeft: safeAreaValue.left ? safeAreaValue.left : 10,
+        paddingRight: safeAreaValue.right ? safeAreaValue.right : 10,
         // paddingBottom: (safeAreaInsets?.bottom ?? 0),
       }}
     >

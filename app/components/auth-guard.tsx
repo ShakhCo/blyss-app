@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocationStore, trackVisit } from "~/stores/location";
+import { useLocationStore } from "~/stores/location";
 import { Logo } from "~/components/icons/Logo";
 
 interface LocationProviderProps {
@@ -34,11 +34,6 @@ export function LocationProvider({ children }: LocationProviderProps) {
     }
   }, [hasHydrated, location, lastUpdated, fetchLocation]);
 
-  // Track every visit (no cache - sends Telegram notification)
-  useEffect(() => {
-    if (!hasHydrated) return;
-    trackVisit();
-  }, [hasHydrated]);
 
   // Show loading while hydrating
   if (!hasHydrated) {

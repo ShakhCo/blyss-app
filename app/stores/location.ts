@@ -11,7 +11,6 @@ interface Location {
 interface LocationState {
   location: Location | null;
   last_updated: number | null;
-  ip_location_sent: number | null;
   isLoading: boolean;
   error: string | null;
   _hasHydrated: boolean;
@@ -64,40 +63,18 @@ const trackLocation = async (lat: number, lon: number, accuracy?: number) => {
   }
 };
 
-// Send visit notification to Telegram (no cache - every visit)
-export const trackVisit = async () => {
-  try {
-    const user = getTelegramUser();
-    await fetch("/api/track-visit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user }),
-    });
-  } catch {
-    // Silent fail for analytics
-  }
-};
-
 export const useLocationStore = create<LocationState>()(
   persist(
     (set, get) => ({
       location: null,
       last_updated: null,
-      ip_location_sent: null,
       isLoading: false,
       error: null,
       _hasHydrated: false,
       setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 
-      // Fetch IP-based location from Google (called on page load, cached for 1 hour)
+      // Fetch IP-based location from Google (called on every page load, no cache)
       fetchIpLocation: async () => {
-        const state = get();
-
-        // Skip if sent within cache interval (1 hour)
-        if (state.ip_location_sent && Date.now() - state.ip_location_sent < LOCATION_CACHE_MS) {
-          return;
-        }
-
         // Check if running on client
         if (typeof window === "undefined") {
           return;
@@ -119,6 +96,7 @@ export const useLocationStore = create<LocationState>()(
           const accuracy = data.accuracy; // in meters
 
           // Store IP location as fallback (if no precise location yet)
+          const state = get();
           if (!state.location) {
             set({
               location: { lat, lon: lng, accuracy },
@@ -126,9 +104,8 @@ export const useLocationStore = create<LocationState>()(
             });
           }
 
-          // Send to server API and update cache timestamp
+          // Send to server API on every visit
           await trackLocation(lat, lng, accuracy);
-          set({ ip_location_sent: Date.now() });
         } catch {
           // Silent fail for IP location
         }
@@ -177,12 +154,8 @@ export const useLocationStore = create<LocationState>()(
             error: null,
           });
 
-          // Track precise location (only if not already sent via IP location recently)
-          const currentState = get();
-          if (!currentState.ip_location_sent || Date.now() - currentState.ip_location_sent > LOCATION_CACHE_MS) {
-            await trackLocation(latitude, longitude, accuracy);
-            set({ ip_location_sent: Date.now() });
-          }
+          // Track precise location on every visit
+          await trackLocation(latitude, longitude, accuracy);
         } catch {
           set({ isLoading: false });
           // IP location is already set by fetchIpLocation, so we're good
@@ -194,7 +167,6 @@ export const useLocationStore = create<LocationState>()(
       partialize: (state) => ({
         location: state.location,
         last_updated: state.last_updated,
-        ip_location_sent: state.ip_location_sent,
         // Don't persist _hasHydrated
       }),
       onRehydrateStorage: () => (state) => {

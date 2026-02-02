@@ -120,9 +120,12 @@ export function SalonFeedCard({
           </div>
         </div>
         <div className="col-span-4 py-1" onClick={(e) => e.stopPropagation()}>
-          <Button className="w-full truncate" onPress={onBookClick}>
+          {/* <Button className="w-full truncate" variant="secondary" onPress={onBookClick}>
+          </Button> */}
+          <button onClick={onBookClick} className="flex items-center gap-1 truncate bg-primary/20 font-medium text-primary text-sm rounded-xl w-full px-4 py-2">
             <span className="truncate">{t('home.book')}</span>
-          </Button>
+            <ChevronRight className="shrink-0" size={16} strokeWidth={1.8} />
+          </button>
         </div>
       </div>
 

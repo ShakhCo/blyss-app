@@ -25,8 +25,8 @@ import { ReviewsModal } from "~/components/ReviewsModal";
 import { queryClient } from "~/lib/query-client";
 
 // Pagination constants
-const INITIAL_PAGE_SIZE = 1;
-const LOAD_MORE_SIZE = 1;
+const INITIAL_PAGE_SIZE = 3;
+const LOAD_MORE_SIZE = 3;
 
 // Hook to detect if element is in viewport
 function useInView(options?: IntersectionObserverInit) {
