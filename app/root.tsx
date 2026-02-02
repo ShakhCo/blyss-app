@@ -69,12 +69,10 @@ export default function App() {
   const privacyPolicyAccepted = useUserStore((state) => state.privacyPolicyAccepted);
 
   useEffect(() => {
-    // Initialize Eruda console for debugging (development only)
-    if (import.meta.env.DEV) {
-      import("eruda").then((eruda) => {
-        eruda.default.init();
-      });
-    }
+    // Initialize Eruda console for debugging
+    import("eruda").then((eruda) => {
+      eruda.default.init();
+    });
 
     // Initialize TMA SDK only on client side
     import("@tma.js/sdk-react").then(async ({ init, backButton, retrieveLaunchParams, viewport, swipeBehavior }) => {
