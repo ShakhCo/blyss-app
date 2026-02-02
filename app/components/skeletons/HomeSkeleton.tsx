@@ -22,16 +22,16 @@ export function HomeSkeleton() {
       </div>
 
       {/* Featured Section */}
-      <div className="mt-6 mb-6 bg-gradient-to-br from-stone-100 via-stone-100 to-stone-50 dark:from-stone-800 dark:via-stone-800 dark:to-stone-900 rounded-3xl pt-4 overflow-hidden">
+      {/* <div className="mt-6 mb-6 bg-gradient-to-br from-stone-100 via-stone-100 to-stone-50 dark:from-stone-800 dark:via-stone-800 dark:to-stone-900 rounded-3xl pt-4 overflow-hidden">
         <div className="px-4 mb-4">
           <div className="h-6 w-40 bg-stone-200 dark:bg-stone-700 rounded mb-2" />
           <div className="h-4 w-28 bg-stone-200 dark:bg-stone-700 rounded" />
         </div>
         <FeaturedSalonsSkeleton count={3} />
-      </div>
+      </div> */}
 
       {/* Feed */}
-      <SalonFeedListSkeleton count={2} />
+      <SalonFeedListSkeleton count={3} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import type { Route } from "./+types/home";
@@ -25,8 +25,111 @@ import { ReviewsModal } from "~/components/ReviewsModal";
 import { queryClient } from "~/lib/query-client";
 
 // Pagination constants
-const INITIAL_PAGE_SIZE = 3;
-const LOAD_MORE_SIZE = 5;
+const INITIAL_PAGE_SIZE = 1;
+const LOAD_MORE_SIZE = 1;
+
+// Hook to detect if element is in viewport
+function useInView(options?: IntersectionObserverInit) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect(); // Once seen, stop observing
+        }
+      },
+      { threshold: 0.1, ...options }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, isInView };
+}
+
+// Helper to format distance with fallback
+const formatDistance = (distance?: number, metric?: string) => {
+  if (distance == null) return null;
+  const unit = metric || "km";
+  // Round down: < 1km to nearest 0.05, >= 1km to nearest 0.1
+  const rounded = distance < 1
+    ? Math.floor(distance * 20) / 20  // 0.87 → 0.85
+    : Math.floor(distance * 10) / 10; // 3.54 → 3.5
+  return `${rounded}${unit}`;
+};
+
+// Lazy loading card wrapper - only calculates distance when visible
+function LazySalonCard({
+  business,
+  language,
+  t,
+  onClick,
+  onBookClick,
+  onReviewsClick,
+  onHover,
+}: {
+  business: NearestBusiness;
+  language: "uz" | "ru";
+  t: (key: string) => string;
+  onClick: () => void;
+  onBookClick: () => void;
+  onReviewsClick: (salon: SalonFeedData) => void;
+  onHover: () => void;
+}) {
+  const { ref, isInView } = useInView();
+
+  // Only compute distance when card is in view
+  const salon = useMemo(() => {
+    const services = business.services || [];
+    const serviceNames = services.slice(0, 3).map((s) => s.name?.[language] || s.name?.uz || "");
+    const remainingCount = Math.max(0, services.length - 3);
+
+    // Only calculate distance if in view
+    const distanceText = isInView ? formatDistance(business.distance, business.distance_metric) : undefined;
+
+    const businessId = business.business_id || business.business_name || "unknown";
+    const businessName = business.business_name || "Unknown";
+
+    return {
+      id: businessId,
+      name: businessName,
+      image: business.avatar_url || undefined,
+      address: business.location?.display_address || (distanceText ? `${distanceText} ${t('home.fromYou')}` : ""),
+      services: remainingCount > 0
+        ? [...serviceNames, `+${remainingCount}`]
+        : serviceNames,
+      likes: 75,
+      rating: 4.5,
+      comments: 12,
+      distance: distanceText ?? undefined,
+      businessLocation: business.location ? { lat: business.location.lat, lng: business.location.lng } : undefined,
+    } satisfies SalonFeedData;
+  }, [business, language, t, isInView]);
+
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={onHover}
+      onTouchStart={onHover}
+    >
+      <SalonFeedCard
+        salon={salon}
+        onClick={onClick}
+        onBookClick={onBookClick}
+        onLikeClick={() => console.log(`Like: ${salon.name}`)}
+        onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
+        onReviewsClick={() => onReviewsClick(salon)}
+      />
+    </div>
+  );
+}
 
 // Import service icons
 import scissorIcon from "~/assets/icons/scissor.png";
@@ -164,17 +267,6 @@ export default function Home() {
     clearOnboardingData();
   }, []);
 
-  // Helper to format distance with fallback
-  const formatDistance = (distance?: number, metric?: string) => {
-    if (distance == null) return null;
-    const unit = metric || "km";
-    // Round down: < 1km to nearest 0.05, >= 1km to nearest 0.1
-    const rounded = distance < 1
-      ? Math.floor(distance * 20) / 20  // 0.87 → 0.85
-      : Math.floor(distance * 10) / 10; // 3.54 → 3.5
-    return `${rounded}${unit}`;
-  };
-
   // Map businesses to FeaturedSalon format
   const nearestSalons = useMemo(() => {
     return businesses.slice(0, 5).map((business, index) => {
@@ -202,38 +294,6 @@ export default function Home() {
         reviewCount: "1.2k",
         isFavorite: false,
       } satisfies FeaturedSalon;
-    });
-  }, [businesses, language, t]);
-
-  // Map businesses to SalonFeedData format
-  const feedSalons = useMemo(() => {
-    return businesses.map((business, index) => {
-      // Get services and format them based on language
-      const services = business.services || [];
-      const serviceNames = services.slice(0, 3).map((s) => s.name?.[language] || s.name?.uz || "");
-      const remainingCount = Math.max(0, services.length - 3);
-
-      // Format distance using API-provided metric
-      const distanceText = formatDistance(business.distance, business.distance_metric);
-
-      // Use business_id if available, otherwise fallback to business_name or index
-      const businessId = business.business_id || business.business_name || `business-${index}`;
-      const businessName = business.business_name || "Unknown";
-
-      return {
-        id: businessId,
-        name: businessName,
-        image: business.avatar_url || undefined,
-        address: business.location?.display_address || (distanceText ? `${distanceText} ${t('home.fromYou')}` : ""),
-        services: remainingCount > 0
-          ? [...serviceNames, `+${remainingCount}`]
-          : serviceNames,
-        likes: 75,
-        rating: 4.5,
-        comments: 12,
-        distance: distanceText ?? undefined,
-        businessLocation: business.location ? { lat: business.location.lat, lng: business.location.lng } : undefined,
-      } satisfies SalonFeedData;
     });
   }, [businesses, language, t]);
 
@@ -360,7 +420,7 @@ export default function Home() {
         <div className="flex flex-col">
           {showSkeleton ? (
             <>
-              {[1, 2, 3].map((i) => (
+              {[1].map((i) => (
                 <div key={i} className="flex flex-col p-0 w-full">
                   {/* Image skeleton */}
                   <div className="px-2">
@@ -404,34 +464,59 @@ export default function Home() {
                 {t('home.retry')}
               </button>
             </div>
-          ) : feedSalons.length > 0 ? (
+          ) : businesses.length > 0 ? (
             <div>
-              {feedSalons.map((salon) => (
-                <div
-                  key={salon.id}
-                  onMouseEnter={() => handleSalonHover(salon.id)}
-                  onTouchStart={() => handleSalonHover(salon.id)}
-                >
-                  <SalonFeedCard
-                    salon={salon}
-                    onClick={() => handleSalonClick(salon)}
-                    onBookClick={() => handleBookClick(salon)}
-                    onLikeClick={() => console.log(`Like: ${salon.name}`)}
-                    onNavigateClick={() => console.log(`Navigate: ${salon.name}`)}
-                    onReviewsClick={() => handleReviewsClick(salon)}
-                  />
-                </div>
+              {businesses.map((business) => (
+                <LazySalonCard
+                  key={business.business_id || business.business_name}
+                  business={business}
+                  language={language}
+                  t={t}
+                  onClick={() => navigate(`/salon/${business.business_id}`)}
+                  onBookClick={() => navigate(`/salon/${business.business_id}`)}
+                  onReviewsClick={handleReviewsClick}
+                  onHover={() => handleSalonHover(business.business_id || "")}
+                />
               ))}
 
               {/* Load more trigger */}
               <div ref={loadMoreRef} className="py-4">
                 {isFetchingNextPage && (
-                  <div className="flex justify-center">
-                    <div className="flex items-center gap-2">
-                      <div className="size-5 border-2 border-stone-300 border-t-primary rounded-full animate-spin" />
-                      <span className="text-stone-500 text-sm">{t('home.loadingMore')}</span>
-                    </div>
-                  </div>
+                  <>
+                    {[1].map((i) => (
+                      <div key={i} className="flex flex-col p-0 w-full">
+                        {/* Image skeleton */}
+                        <div className="px-2">
+                          <div className="rounded-2xl overflow-hidden w-full">
+                            <div className="h-48 mb-0.5 w-full bg-stone-200 dark:bg-stone-800 animate-pulse" />
+                            <div className="grid grid-cols-4 gap-0.5">
+                              {[1, 2, 3, 4].map((j) => (
+                                <div key={j} className="aspect-square bg-stone-200 dark:bg-stone-800 animate-pulse" />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Info skeleton */}
+                        <div className="grid grid-cols-12 gap-2 px-2 pt-2">
+                          <div className="col-span-8 px-2 py-1">
+                            <div className="h-5 w-32 bg-stone-200 dark:bg-stone-800 rounded animate-pulse mb-2" />
+                            <div className="h-4 w-48 bg-stone-200 dark:bg-stone-800 rounded animate-pulse" />
+                          </div>
+                          <div className="col-span-4 py-1">
+                            <div className="h-10 w-full bg-stone-200 dark:bg-stone-800 rounded-xl animate-pulse" />
+                          </div>
+                        </div>
+                        {/* Action buttons skeleton */}
+                        <div className="pb-8 mt-3">
+                          <div className="px-3 flex items-center gap-2 w-full h-8">
+                            <div className="h-8 w-16 bg-stone-200 dark:bg-stone-800 rounded-full animate-pulse" />
+                            <div className="h-8 w-16 bg-stone-200 dark:bg-stone-800 rounded-full animate-pulse" />
+                            <div className="h-8 w-20 bg-stone-200 dark:bg-stone-800 rounded-full animate-pulse" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
             </div>

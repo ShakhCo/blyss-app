@@ -76,7 +76,7 @@ export function AppLayout({
 
   return (
     <SafeAreaProvider value={safeAreaValue}>
-      <div className="max-w-lg mx-auto h-screen flex flex-col bg-gray-950 overflow-hidden">
+      <div className="h-screen flex flex-col bg-gray-950 overflow-hidden">
         {/* Fixed Header with Safe Area */}
         <div
           className="shrink-0 z-50 bg-gray-950"
