@@ -65,29 +65,10 @@ export const Calendar = ({ value, onChange, isDateUnavailable }: CalendarProps) 
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [viewYear, setViewYear] = useState(today.getFullYear());
 
-  // Find the first available date
-  const findFirstAvailableDate = (): Date => {
-    const current = new Date(today);
-    const limitDate = new Date(today);
-    limitDate.setDate(today.getDate() + 60);
+  // Internal state only used when component is uncontrolled
+  const [internalValue, setInternalValue] = useState<string | undefined>(value);
 
-    while (current <= limitDate) {
-      const hasNoTimeSlots = isDateUnavailable?.(current) ?? false;
-      if (!hasNoTimeSlots) {
-        return current;
-      }
-      current.setDate(current.getDate() + 1);
-    }
-    return today;
-  };
-
-  const firstAvailableDate = useMemo(() => findFirstAvailableDate(), []);
-  const defaultDateStr = formatDate(firstAvailableDate);
-
-  const [internalValue, setInternalValue] = useState<string | undefined>(
-    value ?? defaultDateStr
-  );
-
+  // Use controlled value if provided, otherwise use internal state
   const selectedValue = value ?? internalValue;
 
   const weeks = useMemo(() => getMonthWeeks(viewYear, viewMonth), [viewYear, viewMonth]);
@@ -150,9 +131,9 @@ export const Calendar = ({ value, onChange, isDateUnavailable }: CalendarProps) 
       </div>
 
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 text-center text-sm font-medium text-stone-500 mb-2">
+      <div className="grid grid-cols-7 text-center font-medium text-stone-500 mb-2">
         {["Du", "Se", "Cho", "Pay", "Ju", "Sha", "Yak"].map((d) => (
-          <div key={d} className={d === "Sha" || d === "Yak" ? "text-red-500" : ""}>
+          <div key={d} className={`${d === "Sha" || d === "Yak" ? "text-red-500" : ""} text-xs`}>
             {d}
           </div>
         ))}
@@ -180,7 +161,7 @@ export const Calendar = ({ value, onChange, isDateUnavailable }: CalendarProps) 
                   onClick={() => handleSelect(day)}
                   initial={false}
                   animate={{
-                    scale: isSelected ? 1.05 : 1,
+                    scale: isSelected ? 1.02 : 1,
                   }}
                   transition={{
                     type: "spring",
@@ -188,16 +169,16 @@ export const Calendar = ({ value, onChange, isDateUnavailable }: CalendarProps) 
                     damping: 10,
                   }}
                   className={`
-                    h-10 flex items-center justify-center rounded-xl text-sm
+                    h-10 w-10 flex items-center justify-center rounded-full font-semibold
                     ${!isCurrentMonth
-                      ? "bg-transparent text-stone-200 dark:text-stone-700 cursor-not-allowed"
+                      ? "bg-transparent text-xs text-stone-200 dark:text-stone-700 cursor-not-allowed"
                       : isDisabled
-                        ? "bg-transparent text-stone-300 dark:text-stone-600 cursor-not-allowed"
+                        ? "bg-transparent text-xs text-stone-300 dark:text-stone-600 cursor-not-allowed"
                         : isSelected
-                          ? "bg-primary text-white font-semibold shadow-sm"
+                          ? "bg-primary text-white font-semibold text-base"
                           : isToday
-                            ? "bg-primary/20 text-primary font-semibold"
-                            : "bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700"
+                            ? "bg-primary/20 text-xs text-primary font-semibold"
+                            : "bg-stone-100 text-xs dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-700"
                     }
                   `}
                 >

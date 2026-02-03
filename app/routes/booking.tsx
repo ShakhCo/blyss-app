@@ -55,7 +55,7 @@ const categoryIcons: Record<string, string> = {
   Teri: creamIcon,
 };
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [
     { title: "Band qilish - Blyss" },
     { name: "description", content: "Xizmatni band qilish" },
@@ -238,19 +238,19 @@ export default function Booking() {
     };
   }, [salonId, selectedServices, selectedDate]);
 
-  // Fetch available slots when date and employee are selected
+  // Fetch available slots when date is selected (without requiring employee)
   const fetchAvailableSlots = useCallback(
-    async (service: BookingServiceWithSelection) => {
-      if (!salonId || !selectedDate || !service.selectedEmployee) return;
+    async () => {
+      if (!salonId || !selectedDate || selectedServices.length === 0) return;
 
+      const service = selectedServices[0]; // Use first service for slot fetching
       setIsLoadingSlots(true);
 
       try {
         const result = await getAvailableSlots(salonId, {
           date: selectedDate,
           service_id: service.id,
-          employee_id: service.selectedEmployee.id,
-          duration_minutes: service.selectedEmployee.service_duration_minutes,
+          // No employee_id - get all available slots
         });
 
         setAvailableSlots(result.slots);
@@ -261,16 +261,15 @@ export default function Booking() {
         setIsLoadingSlots(false);
       }
     },
-    [salonId, selectedDate]
+    [salonId, selectedDate, selectedServices]
   );
 
-  // Auto-fetch slots when employee is selected
+  // Auto-fetch slots when date is selected
   useEffect(() => {
-    const activeService = selectedServices[activeServiceIndex];
-    if (activeService?.selectedEmployee && selectedDate) {
-      fetchAvailableSlots(activeService);
+    if (selectedDate) {
+      fetchAvailableSlots();
     }
-  }, [activeServiceIndex, selectedServices, selectedDate, fetchAvailableSlots]);
+  }, [selectedDate, fetchAvailableSlots]);
 
   useEffect(() => {
     bottomNav.hide();
@@ -287,41 +286,35 @@ export default function Booking() {
   // Handle date selection
   const handleDateSelect = (dateStr: string) => {
     setSelectedDate(dateStr);
-    // Clear time selections when date changes
+    // Clear time and employee selections when date changes
     selectedServices.forEach((service) => {
       updateServiceTime(service.id, null);
+      updateServiceEmployee(service.id, null);
     });
     setAvailableSlots([]);
-    // Clear employees to force re-fetch with new date (employee availability can change by date)
+    // Clear employees to force re-fetch with new date
     setEmployeesPerService({});
     setEmployeeErrors({});
-    setIsCalendarExpanded(false);
-    setIsTimeExpanded(true);
+  };
+
+  // Handle time selection (before employee)
+  const handleTimeSelect = (serviceId: string, time: string) => {
+    updateServiceTime(serviceId, time);
+    // After selecting time, expand employee selection
+    setIsStylistExpanded(true);
   };
 
   // Handle employee selection for a service
   const handleEmployeeSelect = (serviceId: string, employee: Employee) => {
     updateServiceEmployee(serviceId, employee);
-    // Clear time when employee changes
-    updateServiceTime(serviceId, null);
     setIsStylistExpanded(false);
-
-    // Auto-expand time section if date is selected
-    if (selectedDate) {
-      setIsTimeExpanded(true);
-    }
-  };
-
-  // Handle time selection for a service
-  const handleTimeSelect = (serviceId: string, time: string) => {
-    updateServiceTime(serviceId, time);
-    setIsTimeExpanded(false);
 
     // Move to next service if there are more
     const currentIndex = selectedServices.findIndex((s) => s.id === serviceId);
     if (currentIndex < selectedServices.length - 1) {
       setActiveServiceIndex(currentIndex + 1);
-      setIsStylistExpanded(true);
+      // Reset time for next service
+      setIsStylistExpanded(false);
     }
   };
 
@@ -448,315 +441,228 @@ export default function Booking() {
   return (
     <AppLayout back>
       <div className="bg-stone-50 dark:bg-stone-950 min-h-screen pb-24">
+
         {/* Salon Name */}
-        <div className="bg-white dark:bg-stone-900 px-4 py-3 border-b border-stone-100 dark:border-stone-800">
-          <h1 className="font-semibold text-stone-900 dark:text-stone-100">{salonName}</h1>
+        <div className="bg-white dark:bg-stone-900 px-5 pt-6 pb-4 sticky top-0 z-100 border-b border-stone-100 dark:border-stone-800">
+          <h1 className="font-semibold text-xl text-stone-900 dark:text-stone-100">{salonName}</h1>
         </div>
 
-        {/* Progress indicator for multi-service */}
-        {selectedServices.length > 1 && (
-          <div className="bg-white dark:bg-stone-900 px-4 py-3 border-b border-stone-100 dark:border-stone-800">
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              {completedServices.length} / {selectedServices.length} xizmat sozlandi
-            </p>
-            <div className="flex gap-1 mt-2">
-              {selectedServices.map((service, index) => (
-                <button
-                  key={service.id}
-                  onClick={() => setActiveServiceIndex(index)}
-                  className={`flex-1 h-1 rounded-full transition-colors ${
-                    service.selectedEmployee && service.selectedTime
-                      ? "bg-green-500"
-                      : index === activeServiceIndex
-                      ? "bg-primary"
-                      : "bg-stone-200 dark:bg-stone-700"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Date Selection */}
+        {/* Date Selection - Always visible */}
         <div className="bg-white dark:bg-stone-900 mt-2">
-          <button
-            type="button"
-            onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
-            className="w-full px-4 pr-5 py-4 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="size-12 shrink-0 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
-                <CalendarIcon size={22} className="text-primary" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm text-stone-500 dark:text-stone-400">Sana</p>
-                <p className="font-semibold text-stone-900 dark:text-stone-100">
-                  {selectedDate
-                    ? new Date(selectedDate).toLocaleDateString("uz-UZ", {
-                        weekday: "short",
-                        day: "numeric",
-                        month: "long",
-                      })
-                    : "Sanani tanlang"}
-                </p>
-              </div>
-            </div>
-            <motion.div
-              animate={{ rotate: isCalendarExpanded ? 180 : 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            >
-              <ChevronDown size={24} className="text-stone-400" />
-            </motion.div>
-          </button>
+          <div className="px-4 pb-4 pt-3">
+            <Calendar
+              onChange={handleDateSelect}
+              isDateUnavailable={isDateUnavailable}
+            />
+          </div>
 
-          <AnimatePresence initial={false}>
-            {isCalendarExpanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="overflow-hidden"
-              >
-                <div className="px-4 pb-4 border-t border-stone-100 dark:border-stone-800 pt-4">
-                  <Calendar
-                    onChange={handleDateSelect}
-                    isDateUnavailable={isDateUnavailable}
-                  />
+          {/* Time Selection - Right under calendar */}
+          {selectedDate && (
+            <div className="px-4 pb-4 border-t border-stone-100 dark:border-stone-800 pt-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock size={18} className="text-primary" />
+                <p className="text-sm font-medium text-stone-700 dark:text-stone-300">Vaqtni tanlang</p>
+                {isLoadingSlots && <Spinner size="sm" />}
+              </div>
+
+              {availableSlots.length === 0 && !isLoadingSlots ? (
+                <p className="text-sm text-stone-500 py-2">
+                  Bo'sh vaqt yo'q. Boshqa sanani tanlang.
+                </p>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                  {availableSlots.map(({ time, available_employees }) => {
+                    const activeService = selectedServices[activeServiceIndex];
+                    const isSelected = activeService?.selectedTime === time;
+                    const hasAvailableEmployees = available_employees.length > 0;
+
+                    return (
+                      <motion.button
+                        key={time}
+                        type="button"
+                        onClick={() => {
+                          if (hasAvailableEmployees && activeService) {
+                            handleTimeSelect(activeService.id, time);
+                          }
+                        }}
+                        disabled={!hasAvailableEmployees}
+                        initial={false}
+                        animate={{ scale: isSelected ? 1.05 : 1 }}
+                        className={`px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
+                          isSelected
+                            ? "bg-primary text-white"
+                            : hasAvailableEmployees
+                              ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
+                              : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600 cursor-not-allowed"
+                        }`}
+                      >
+                        {time}
+                      </motion.button>
+                    );
+                  })}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Services with Employee & Time Selection */}
-        {selectedServices.map((service, index) => (
-          <div key={service.id} className="bg-white dark:bg-stone-900 mt-2">
-            {/* Service Header */}
-            <div className="px-4 py-3 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="size-10 shrink-0 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
-                  <img
-                    src={categoryIcons[service.category] || scissorIcon}
-                    alt={service.name}
-                    className="size-5 object-contain"
-                  />
+        {/* Services with Employee Selection */}
+        {selectedServices.map((service, index) => {
+          // Get employees available at the selected time
+          const selectedTime = service.selectedTime;
+          const timeSlot = availableSlots.find((s) => s.time === selectedTime);
+          const availableEmployeeIds = timeSlot?.available_employees || [];
+          const allEmployees = employeesPerService[service.id] || [];
+          const availableEmployees = selectedTime
+            ? allEmployees.filter((e) => availableEmployeeIds.includes(e.id))
+            : allEmployees;
+
+          return (
+            <div key={service.id} className="bg-white dark:bg-stone-900 mt-2">
+              {/* Service Header */}
+              <div className="px-4 py-3 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-10 shrink-0 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+                    <img
+                      src={categoryIcons[service.category] || scissorIcon}
+                      alt={service.name}
+                      className="size-5 object-contain"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-stone-900 dark:text-stone-100">
+                      {service.name}
+                    </h3>
+                    <p className="text-sm text-stone-500 dark:text-stone-400">
+                      {service.selectedEmployee
+                        ? `${formatPrice(service.selectedEmployee.service_price)} so'm · ${service.selectedEmployee.service_duration_minutes} daqiqa`
+                        : `${service.price} so'm · ${service.duration}`}
+                      {service.selectedTime && (
+                        <span className="text-primary"> · {service.selectedTime}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium text-stone-900 dark:text-stone-100">
-                    {service.name}
-                  </h3>
-                  <p className="text-sm text-stone-500 dark:text-stone-400">
-                    {service.selectedEmployee
-                      ? `${formatPrice(service.selectedEmployee.service_price)} so'm · ${service.selectedEmployee.service_duration_minutes} daqiqa`
-                      : `${service.price} so'm · ${service.duration}`}
-                  </p>
-                </div>
+                {selectedServices.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeService(service.id)}
+                    className="size-8 flex items-center justify-center rounded-full border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
-              {selectedServices.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeService(service.id)}
-                  className="size-8 flex items-center justify-center rounded-full border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  <X size={16} />
-                </button>
+
+              {/* Employee Selection - Only show after time is selected */}
+              {service.selectedTime && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveServiceIndex(index);
+                      setIsStylistExpanded(activeServiceIndex === index ? !isStylistExpanded : true);
+                    }}
+                    className="w-full px-4 py-3 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      {service.selectedEmployee ? (
+                        <Avatar className="size-10">
+                          <Avatar.Fallback>
+                            {service.selectedEmployee.first_name.slice(0, 2)}
+                          </Avatar.Fallback>
+                        </Avatar>
+                      ) : (
+                        <div className="size-10 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+                          <User size={18} className="text-stone-400" />
+                        </div>
+                      )}
+                      <div className="text-left">
+                        <p className="text-sm text-stone-500 dark:text-stone-400">Mutaxassis</p>
+                        <p className="font-medium text-stone-900 dark:text-stone-100">
+                          {service.selectedEmployee
+                            ? getEmployeeFullName(service.selectedEmployee)
+                            : "Tanlang"}
+                        </p>
+                      </div>
+                    </div>
+                    {loadingEmployees[service.id] ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <ChevronDown
+                        size={20}
+                        className={`text-stone-400 transition-transform ${
+                          activeServiceIndex === index && isStylistExpanded ? "rotate-180" : ""
+                        }`}
+                      />
+                    )}
+                  </button>
+
+                  {/* Employees List - Filtered by availability at selected time */}
+                  <AnimatePresence initial={false}>
+                    {activeServiceIndex === index && isStylistExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="divide-y divide-stone-100 dark:divide-stone-800 bg-stone-50 dark:bg-stone-950">
+                          {employeeErrors[service.id] && (
+                            <p className="px-4 py-3 text-sm text-red-500">
+                              {employeeErrors[service.id]}
+                            </p>
+                          )}
+                          {!employeeErrors[service.id] && availableEmployees.length === 0 && (
+                            <p className="px-4 py-3 text-sm text-stone-500">
+                              Bu vaqtda bo'sh mutaxassis yo'q
+                            </p>
+                          )}
+                          {availableEmployees.map((employee) => (
+                            <button
+                              key={employee.id}
+                              type="button"
+                              onClick={() => handleEmployeeSelect(service.id, employee)}
+                              className="w-full px-4 py-3 flex items-center justify-between hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Avatar className="size-10">
+                                  <Avatar.Fallback>
+                                    {employee.first_name.slice(0, 2)}
+                                  </Avatar.Fallback>
+                                </Avatar>
+                                <div className="text-left">
+                                  <p className="font-medium text-stone-900 dark:text-stone-100">
+                                    {getEmployeeFullName(employee)}
+                                  </p>
+                                  <p className="text-sm text-stone-500 dark:text-stone-400">
+                                    {employee.position} · {formatPrice(employee.service_price)} so'm
+                                  </p>
+                                </div>
+                              </div>
+                              <div
+                                className={`size-5 rounded-full border-2 flex items-center justify-center ${
+                                  service.selectedEmployee?.id === employee.id
+                                    ? "border-primary bg-primary"
+                                    : "border-stone-300 dark:border-stone-600"
+                                }`}
+                              >
+                                {service.selectedEmployee?.id === employee.id && (
+                                  <Check size={12} className="text-white" />
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
               )}
             </div>
-
-            {/* Employee Selection */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveServiceIndex(index);
-                setIsStylistExpanded(activeServiceIndex === index ? !isStylistExpanded : true);
-              }}
-              className="w-full px-4 py-3 flex items-center justify-between border-b border-stone-100 dark:border-stone-800"
-            >
-              <div className="flex items-center gap-3">
-                {service.selectedEmployee ? (
-                  <Avatar className="size-10">
-                    <Avatar.Fallback>
-                      {service.selectedEmployee.first_name.slice(0, 2)}
-                    </Avatar.Fallback>
-                  </Avatar>
-                ) : (
-                  <div className="size-10 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
-                    <User size={18} className="text-stone-400" />
-                  </div>
-                )}
-                <div className="text-left">
-                  <p className="text-sm text-stone-500 dark:text-stone-400">Mutaxassis</p>
-                  <p className="font-medium text-stone-900 dark:text-stone-100">
-                    {service.selectedEmployee
-                      ? getEmployeeFullName(service.selectedEmployee)
-                      : "Tanlang"}
-                  </p>
-                </div>
-              </div>
-              {loadingEmployees[service.id] ? (
-                <Spinner size="sm" />
-              ) : (
-                <ChevronDown
-                  size={20}
-                  className={`text-stone-400 transition-transform ${
-                    activeServiceIndex === index && isStylistExpanded ? "rotate-180" : ""
-                  }`}
-                />
-              )}
-            </button>
-
-            {/* Employees List */}
-            <AnimatePresence initial={false}>
-              {activeServiceIndex === index && isStylistExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  className="overflow-hidden"
-                >
-                  <div className="divide-y divide-stone-100 dark:divide-stone-800 bg-stone-50 dark:bg-stone-950">
-                    {employeeErrors[service.id] && (
-                      <p className="px-4 py-3 text-sm text-red-500">
-                        {employeeErrors[service.id]}
-                      </p>
-                    )}
-                    {!employeeErrors[service.id] && employeesPerService[service.id]?.length === 0 && (
-                      <p className="px-4 py-3 text-sm text-stone-500">
-                        Bu xizmat uchun mutaxassis topilmadi
-                      </p>
-                    )}
-                    {employeesPerService[service.id]?.map((employee) => (
-                      <button
-                        key={employee.id}
-                        type="button"
-                        onClick={() => handleEmployeeSelect(service.id, employee)}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-10">
-                            <Avatar.Fallback>
-                              {employee.first_name.slice(0, 2)}
-                            </Avatar.Fallback>
-                          </Avatar>
-                          <div className="text-left">
-                            <p className="font-medium text-stone-900 dark:text-stone-100">
-                              {getEmployeeFullName(employee)}
-                            </p>
-                            <p className="text-sm text-stone-500 dark:text-stone-400">
-                              {employee.position} · {formatPrice(employee.service_price)} so'm
-                            </p>
-                          </div>
-                        </div>
-                        <div
-                          className={`size-5 rounded-full border-2 flex items-center justify-center ${
-                            service.selectedEmployee?.id === employee.id
-                              ? "border-primary bg-primary"
-                              : "border-stone-300 dark:border-stone-600"
-                          }`}
-                        >
-                          {service.selectedEmployee?.id === employee.id && (
-                            <Check size={12} className="text-white" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Time Selection */}
-            {service.selectedEmployee && selectedDate && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveServiceIndex(index);
-                    setIsTimeExpanded(activeServiceIndex === index ? !isTimeExpanded : true);
-                    if (!isTimeExpanded || activeServiceIndex !== index) {
-                      fetchAvailableSlots(service);
-                    }
-                  }}
-                  className="w-full px-4 py-3 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
-                      <Clock size={18} className="text-primary" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm text-stone-500 dark:text-stone-400">Vaqt</p>
-                      <p className="font-medium text-stone-900 dark:text-stone-100">
-                        {service.selectedTime || "Tanlang"}
-                      </p>
-                    </div>
-                  </div>
-                  {isLoadingSlots && activeServiceIndex === index ? (
-                    <Spinner size="sm" />
-                  ) : (
-                    <ChevronDown
-                      size={20}
-                      className={`text-stone-400 transition-transform ${
-                        activeServiceIndex === index && isTimeExpanded ? "rotate-180" : ""
-                      }`}
-                    />
-                  )}
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {activeServiceIndex === index && isTimeExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="flex gap-2 overflow-x-auto px-4 pb-4 pt-2 scrollbar-hide">
-                        {availableSlots.length === 0 && !isLoadingSlots && (
-                          <p className="text-sm text-stone-500 py-2">
-                            Bo'sh vaqt yo'q. Boshqa sanani tanlang.
-                          </p>
-                        )}
-                        {availableSlots.map(({ time, available_employees }) => {
-                          const isAvailable = available_employees.includes(
-                            service.selectedEmployee!.id
-                          );
-                          const isSelected = service.selectedTime === time;
-
-                          return (
-                            <motion.button
-                              key={time}
-                              type="button"
-                              onClick={() => {
-                                if (isAvailable) {
-                                  handleTimeSelect(service.id, time);
-                                }
-                              }}
-                              disabled={!isAvailable}
-                              initial={false}
-                              animate={{ scale: isSelected ? 1.05 : 1 }}
-                              className={`px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
-                                isSelected
-                                  ? "bg-primary text-white"
-                                  : isAvailable
-                                  ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
-                                  : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600 cursor-not-allowed"
-                              }`}
-                            >
-                              {time}
-                            </motion.button>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </>
-            )}
-          </div>
-        ))}
+          );
+        })}
 
         {/* Add More Services Button */}
         <div className="bg-white dark:bg-stone-900 mt-2">
@@ -829,11 +735,10 @@ export default function Booking() {
                       </p>
                     </div>
                     <div
-                      className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${
-                        serviceLocation === "salon"
-                          ? "border-primary bg-primary"
-                          : "border-stone-300 dark:border-stone-600"
-                      }`}
+                      className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${serviceLocation === "salon"
+                        ? "border-primary bg-primary"
+                        : "border-stone-300 dark:border-stone-600"
+                        }`}
                     >
                       {serviceLocation === "salon" && <Check size={12} className="text-white" />}
                     </div>
@@ -856,11 +761,10 @@ export default function Booking() {
                       </p>
                     </div>
                     <div
-                      className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${
-                        serviceLocation === "home"
-                          ? "border-primary bg-primary"
-                          : "border-stone-300 dark:border-stone-600"
-                      }`}
+                      className={`size-5 shrink-0 rounded-full border-2 flex items-center justify-center ${serviceLocation === "home"
+                        ? "border-primary bg-primary"
+                        : "border-stone-300 dark:border-stone-600"
+                        }`}
                     >
                       {serviceLocation === "home" && <Check size={12} className="text-white" />}
                     </div>
