@@ -273,8 +273,18 @@ export default function Booking() {
 
   useEffect(() => {
     bottomNav.hide();
-    // Reset UI state on mount to ensure calendar is expanded
+    // Reset UI state on mount
     resetUI();
+
+    // Auto-select today's date on mount
+    if (!selectedDate) {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      setSelectedDate(`${year}-${month}-${day}`);
+    }
+
     return () => bottomNav.show();
   }, []);
 
@@ -451,6 +461,7 @@ export default function Booking() {
         <div className="bg-white dark:bg-stone-900 mt-2">
           <div className="px-4 pb-4 pt-3">
             <Calendar
+              value={selectedDate || undefined}
               onChange={handleDateSelect}
               isDateUnavailable={isDateUnavailable}
             />
