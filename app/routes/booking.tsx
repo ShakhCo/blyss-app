@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router";
 import { AppLayout } from "~/components/AppLayout";
 import { Avatar, Button, Spinner } from "@heroui/react";
@@ -120,8 +120,12 @@ export default function Booking() {
   const [serviceLocation, setServiceLocation] = useState<"salon" | "home">("salon");
   const [employeesPerService, setEmployeesPerService] = useState<Record<string, Employee[]>>({});
   const [loadingEmployees, setLoadingEmployees] = useState<Record<string, boolean>>({});
+  const [employeeErrors, setEmployeeErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Ref for caching employees by service+date
+  const employeeCache = useRef<Map<string, Employee[]>>(new Map());
 
   // URL params
   const urlSalonId = searchParams.get("salonId");
@@ -163,35 +167,75 @@ export default function Booking() {
     initializeFromUrl();
   }, [urlSalonId, urlServiceId]);
 
-  // Fetch employees for each selected service
+  // Fetch employees for each selected service with proper cleanup
   useEffect(() => {
+    const abortController = new AbortController();
+
     async function fetchEmployeesForServices() {
       if (!salonId || selectedServices.length === 0) return;
 
       const dateStr = selectedDate || undefined;
 
       for (const service of selectedServices) {
-        if (employeesPerService[service.id] || loadingEmployees[service.id]) {
+        if (abortController.signal.aborted) return;
+
+        // Skip if already have employees for this service+date combo
+        const cacheKey = `${service.id}-${dateStr || "no-date"}`;
+        if (employeeCache.current.has(cacheKey)) {
+          // Use cached data if available
+          const cachedEmployees = employeeCache.current.get(cacheKey);
+          if (cachedEmployees && !employeesPerService[service.id]) {
+            setEmployeesPerService((prev) => ({
+              ...prev,
+              [service.id]: cachedEmployees,
+            }));
+          }
+          continue;
+        }
+
+        // Skip if already loading
+        if (loadingEmployees[service.id]) {
           continue;
         }
 
         setLoadingEmployees((prev) => ({ ...prev, [service.id]: true }));
+        // Clear any previous error for this service
+        setEmployeeErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[service.id];
+          return newErrors;
+        });
 
         try {
           const result = await getEmployeesForService(salonId, service.id, dateStr);
-          setEmployeesPerService((prev) => ({
-            ...prev,
-            [service.id]: result.employees,
-          }));
+          if (!abortController.signal.aborted) {
+            setEmployeesPerService((prev) => ({
+              ...prev,
+              [service.id]: result.employees,
+            }));
+            employeeCache.current.set(cacheKey, result.employees);
+          }
         } catch (err) {
-          console.error(`Failed to fetch employees for service ${service.id}:`, err);
+          if (!abortController.signal.aborted) {
+            console.error(`Failed to fetch employees for service ${service.id}:`, err);
+            setEmployeeErrors((prev) => ({
+              ...prev,
+              [service.id]: "Mutaxassislarni yuklashda xatolik",
+            }));
+          }
         } finally {
-          setLoadingEmployees((prev) => ({ ...prev, [service.id]: false }));
+          if (!abortController.signal.aborted) {
+            setLoadingEmployees((prev) => ({ ...prev, [service.id]: false }));
+          }
         }
       }
     }
 
     fetchEmployeesForServices();
+
+    return () => {
+      abortController.abort();
+    };
   }, [salonId, selectedServices, selectedDate]);
 
   // Fetch available slots when date and employee are selected
@@ -226,7 +270,7 @@ export default function Booking() {
     if (activeService?.selectedEmployee && selectedDate) {
       fetchAvailableSlots(activeService);
     }
-  }, [activeServiceIndex, selectedServices, selectedDate]);
+  }, [activeServiceIndex, selectedServices, selectedDate, fetchAvailableSlots]);
 
   useEffect(() => {
     bottomNav.hide();
@@ -248,6 +292,9 @@ export default function Booking() {
       updateServiceTime(service.id, null);
     });
     setAvailableSlots([]);
+    // Clear employees to force re-fetch with new date (employee availability can change by date)
+    setEmployeesPerService({});
+    setEmployeeErrors({});
     setIsCalendarExpanded(false);
     setIsTimeExpanded(true);
   };
@@ -372,12 +419,14 @@ export default function Booking() {
     return date < today;
   };
 
-  // Get services that still need employee/time selection
-  const pendingServices = selectedServices.filter(
-    (s) => !s.selectedEmployee || !s.selectedTime
+  // Get services that still need employee/time selection (memoized for performance)
+  const pendingServices = useMemo(
+    () => selectedServices.filter((s) => !s.selectedEmployee || !s.selectedTime),
+    [selectedServices]
   );
-  const completedServices = selectedServices.filter(
-    (s) => s.selectedEmployee && s.selectedTime
+  const completedServices = useMemo(
+    () => selectedServices.filter((s) => s.selectedEmployee && s.selectedTime),
+    [selectedServices]
   );
 
   if (!salonId || selectedServices.length === 0) {
@@ -568,7 +617,12 @@ export default function Booking() {
                   className="overflow-hidden"
                 >
                   <div className="divide-y divide-stone-100 dark:divide-stone-800 bg-stone-50 dark:bg-stone-950">
-                    {employeesPerService[service.id]?.length === 0 && (
+                    {employeeErrors[service.id] && (
+                      <p className="px-4 py-3 text-sm text-red-500">
+                        {employeeErrors[service.id]}
+                      </p>
+                    )}
+                    {!employeeErrors[service.id] && employeesPerService[service.id]?.length === 0 && (
                       <p className="px-4 py-3 text-sm text-stone-500">
                         Bu xizmat uchun mutaxassis topilmadi
                       </p>
