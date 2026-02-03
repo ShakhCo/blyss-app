@@ -213,6 +213,7 @@ export interface BusinessDetailsService {
   description?: MultilingualText;
   price?: number;
   duration_minutes?: number;
+  duration?: number; // fallback field name some APIs use
 }
 
 export interface BusinessDetailsResponse {

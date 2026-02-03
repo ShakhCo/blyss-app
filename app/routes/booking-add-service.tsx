@@ -20,7 +20,10 @@ function formatPrice(price: number): string {
 }
 
 // Format duration to readable string
-function formatDuration(minutes: number): string {
+function formatDuration(minutes: number | undefined | null): string {
+  if (!minutes || minutes <= 0) {
+    return "";
+  }
   if (minutes < 60) {
     return `${minutes} daqiqa`;
   }
@@ -30,6 +33,11 @@ function formatDuration(minutes: number): string {
     return `${hours} soat`;
   }
   return `${hours} soat ${remainingMinutes} daqiqa`;
+}
+
+// Get duration from service (handles both field names)
+function getServiceDuration(service: { duration_minutes?: number; duration?: number }): number {
+  return service.duration_minutes || service.duration || 0;
 }
 
 // Get service name (prefer Uzbek)
@@ -91,12 +99,13 @@ export default function BookingAddService() {
     setIsNavigating(true);
 
     // Convert to BookingService format
+    const durationMins = getServiceDuration(service);
     const bookingService: BookingService = {
       id: service.id,
       name: getServiceName(service.name),
       nameMultilingual: service.name,
-      duration: formatDuration(service.duration_minutes || 0),
-      durationMinutes: service.duration_minutes || 0,
+      duration: formatDuration(durationMins) || "—",
+      durationMinutes: durationMins,
       price: formatPrice(service.price || 0),
       priceNumber: service.price || 0,
       category: "Xizmat", // API doesn't return category
@@ -170,7 +179,9 @@ export default function BookingAddService() {
                     {getServiceName(service.name)}
                   </h4>
                   <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-                    {formatDuration(service.duration_minutes || 0)} ·{" "}
+                    {formatDuration(getServiceDuration(service))
+                      ? `${formatDuration(getServiceDuration(service))} · `
+                      : ""}
                     {formatPrice(service.price || 0)} so'm
                   </p>
                   {service.description?.uz && (
