@@ -131,15 +131,17 @@ export interface GetBookingsParams {
 /**
  * Get employees who offer a specific service
  * GET /public/businesses/:businessId/services/:serviceId/employees
+ * Note: date parameter is required by the API
  */
 export async function getEmployeesForService(
   businessId: string,
   serviceId: string,
   date?: string
 ): Promise<EmployeesForServiceResponse> {
-  const params = date ? `?date=${date}` : "";
+  // API requires date parameter - default to today if not provided
+  const dateParam = date || formatDateToAPI(new Date());
   const response = await authFetch(
-    `${API_BASE_URL}/public/businesses/${businessId}/services/${serviceId}/employees${params}`
+    `${API_BASE_URL}/public/businesses/${businessId}/services/${serviceId}/employees?date=${dateParam}`
   );
 
   if (!response.ok) {
