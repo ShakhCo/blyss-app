@@ -33,9 +33,9 @@ const menuSections = [
       {
         id: "bookings",
         icon: Calendar,
-        label: "Bronlarim",
-        badge: "2 faol",
-        href: "/bookings",
+        label: "Buyurtmalarim",
+        badge: null,
+        href: "/orders",
       },
       {
         id: "favorites",
