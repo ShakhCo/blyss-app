@@ -37,7 +37,8 @@ import {
   type BookingItem,
 } from "~/lib/booking-api";
 import { getBusinessDetails } from "~/lib/business-api";
-import { useUserStore } from "~/stores/user-store";
+import { useUserStore, isAuthenticated } from "~/stores/user-store";
+import { AuthDialog } from "~/components/AuthDialog";
 
 // Import service icons
 import scissorIcon from "~/assets/icons/scissor.png";
@@ -66,6 +67,11 @@ export default function Booking() {
   const navigate = useNavigate();
   const { language, t } = useI18nStore();
   const user = useUserStore((state) => state.user);
+  const accessToken = useUserStore((state) => state.access_token);
+
+  // Auth dialog state
+  const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
+  const [pendingBookingConfirm, setPendingBookingConfirm] = useState(false);
 
   // Cart store
   const {
@@ -276,6 +282,24 @@ export default function Booking() {
   const handleConfirmBooking = async () => {
     if (!isReadyToBook() || !salonId || !selectedDate) return;
 
+    // Check if user is authenticated
+    if (!isAuthenticated(accessToken)) {
+      // Show auth dialog
+      setIsAuthDialogOpen(true);
+      setPendingBookingConfirm(true);
+      return;
+    }
+
+    await submitBooking();
+  };
+
+  // Actually submit the booking (called after auth or if already authenticated)
+  const submitBooking = async () => {
+    if (!isReadyToBook() || !salonId || !selectedDate) return;
+
+    // Get fresh user data from store (may have changed after login)
+    const currentUser = useUserStore.getState().user;
+
     setIsSubmitting(true);
     setError(null);
 
@@ -293,11 +317,11 @@ export default function Booking() {
 
       const bookingRequest: CreateBookingRequest = {
         business_id: salonId,
-        customer_name: user?.first_name
-          ? `${user.first_name} ${user.last_name || ""}`.trim()
+        customer_name: currentUser?.first_name
+          ? `${currentUser.first_name} ${currentUser.last_name || ""}`.trim()
           : "Guest",
-        customer_phone: user?.phone_number || "",
-        customer_telegram_id: user?.telegram_id || null,
+        customer_phone: currentUser?.phone_number || "",
+        customer_telegram_id: currentUser?.telegram_id || null,
         booking_date: selectedDate,
         notes: serviceLocation === "home" ? "Xizmat manzilda ko'rsatiladi" : "",
         items,
@@ -324,6 +348,16 @@ export default function Booking() {
       setError(err instanceof Error ? err.message : "Xatolik yuz berdi. Qaytadan urinib ko'ring.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle successful authentication from dialog
+  const handleAuthSuccess = () => {
+    setIsAuthDialogOpen(false);
+    if (pendingBookingConfirm) {
+      setPendingBookingConfirm(false);
+      // Submit booking after successful auth
+      submitBooking();
     }
   };
 
@@ -813,7 +847,7 @@ export default function Booking() {
             onPress={handleConfirmBooking}
           >
             {isSubmitting ? (
-              <Spinner size="sm" color="white" />
+              <Spinner size="sm" color="current" />
             ) : isReadyToBook() ? (
               <span className="flex items-center gap-2">
                 <Check size={18} />
@@ -826,6 +860,18 @@ export default function Booking() {
             )}
           </Button>
         </div>
+
+        {/* Auth Dialog - shows when user tries to book without being logged in */}
+        <AuthDialog
+          isOpen={isAuthDialogOpen}
+          onClose={() => {
+            setIsAuthDialogOpen(false);
+            setPendingBookingConfirm(false);
+          }}
+          onSuccess={handleAuthSuccess}
+          title="Kirish kerak"
+          subtitle="Buyurtmani tasdiqlash uchun telefon raqamingizni kiriting"
+        />
       </div>
     </AppLayout>
   );
