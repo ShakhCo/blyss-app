@@ -224,6 +224,8 @@ export default function Booking() {
 
   useEffect(() => {
     bottomNav.hide();
+    // Reset UI state on mount to ensure calendar is expanded
+    resetUI();
     return () => bottomNav.show();
   }, []);
 
