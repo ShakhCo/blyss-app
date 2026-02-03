@@ -301,7 +301,7 @@ export default function Booking() {
       updateServiceTime(service.id, null);
       updateServiceEmployee(service.id, null);
     });
-    setAvailableSlots([]);
+    // Don't clear availableSlots here - keep showing old slots with loading overlay
     // Clear employees to force re-fetch with new date
     setEmployeesPerService({});
     setEmployeeErrors({});
@@ -458,7 +458,7 @@ export default function Booking() {
         </div>
 
         {/* Date Selection - Always visible */}
-        <div className="bg-white dark:bg-stone-900 mt-2">
+        <div className="bg-white dark:bg-stone-900 mt-2 border-b border-stone-100 dark:border-stone-800">
           <div className="px-4 pb-4 pt-3">
             <Calendar
               value={selectedDate || undefined}
@@ -466,22 +466,31 @@ export default function Booking() {
               isDateUnavailable={isDateUnavailable}
             />
           </div>
+        </div>
 
-          {/* Time Selection - Right under calendar */}
-          {selectedDate && (
-            <div className="px-4 pb-4 border-t border-stone-100 dark:border-stone-800 pt-3">
-              <div className="flex items-center gap-2 mb-3">
-                <Clock size={18} className="text-primary" />
-                <p className="text-sm font-medium text-stone-700 dark:text-stone-300">Vaqtni tanlang</p>
-                {isLoadingSlots && <Spinner size="sm" />}
-              </div>
+        {/* Time Selection - Right under calendar */}
+        {selectedDate && (
+          <div className="py-3 bg-white dark:bg-stone-900 mt-2 border-b border-stone-100 dark:border-stone-800">
 
-              {availableSlots.length === 0 && !isLoadingSlots ? (
-                <p className="text-sm text-stone-500 py-2">
-                  Bo'sh vaqt yo'q. Boshqa sanani tanlang.
-                </p>
-              ) : (
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            {/* <div className="px-4 flex items-center gap-2 mb-3">
+              <Clock size={18} className="text-primary" />
+              <p className="text-sm font-medium text-stone-700 dark:text-stone-300">Vaqtni tanlang</p>
+            </div> */}
+
+            {availableSlots.length === 0 && !isLoadingSlots ? (
+              <p className="text-sm text-stone-500 py-2">
+                Bo'sh vaqt yo'q. Boshqa sanani tanlang.
+              </p>
+            ) : (
+              <div className="relative">
+                {/* Loading overlay */}
+                {isLoadingSlots && (
+                  <div className="absolute inset-0 bg-white/60 dark:bg-stone-900/60 z-10 flex items-center justify-center rounded-lg">
+                    <Spinner size="sm" />
+                  </div>
+                )}
+
+                <div className={`px-4 flex gap-2 overflow-x-auto scrollbar-hide py-1 ${isLoadingSlots ? "pointer-events-none" : ""}`}>
                   {availableSlots.map(({ time, available_employees }) => {
                     const activeService = selectedServices[activeServiceIndex];
                     const isSelected = activeService?.selectedTime === time;
@@ -492,30 +501,29 @@ export default function Booking() {
                         key={time}
                         type="button"
                         onClick={() => {
-                          if (hasAvailableEmployees && activeService) {
+                          if (hasAvailableEmployees && activeService && !isLoadingSlots) {
                             handleTimeSelect(activeService.id, time);
                           }
                         }}
-                        disabled={!hasAvailableEmployees}
+                        disabled={!hasAvailableEmployees || isLoadingSlots}
                         initial={false}
                         animate={{ scale: isSelected ? 1.05 : 1 }}
-                        className={`px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${
-                          isSelected
-                            ? "bg-primary text-white"
-                            : hasAvailableEmployees
-                              ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
-                              : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600 cursor-not-allowed"
-                        }`}
+                        className={`px-6 py-3 rounded-full text-sm font-medium whitespace-nowrap shrink-0 transition-colors ${isSelected
+                          ? "bg-primary text-white"
+                          : hasAvailableEmployees
+                            ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
+                            : "bg-stone-100 dark:bg-stone-800 text-stone-300 dark:text-stone-600 cursor-not-allowed"
+                          }`}
                       >
                         {time}
                       </motion.button>
                     );
                   })}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Services with Employee Selection */}
         {selectedServices.map((service, index) => {
@@ -602,9 +610,8 @@ export default function Booking() {
                     ) : (
                       <ChevronDown
                         size={20}
-                        className={`text-stone-400 transition-transform ${
-                          activeServiceIndex === index && isStylistExpanded ? "rotate-180" : ""
-                        }`}
+                        className={`text-stone-400 transition-transform ${activeServiceIndex === index && isStylistExpanded ? "rotate-180" : ""
+                          }`}
                       />
                     )}
                   </button>
@@ -653,11 +660,10 @@ export default function Booking() {
                                 </div>
                               </div>
                               <div
-                                className={`size-5 rounded-full border-2 flex items-center justify-center ${
-                                  service.selectedEmployee?.id === employee.id
-                                    ? "border-primary bg-primary"
-                                    : "border-stone-300 dark:border-stone-600"
-                                }`}
+                                className={`size-5 rounded-full border-2 flex items-center justify-center ${service.selectedEmployee?.id === employee.id
+                                  ? "border-primary bg-primary"
+                                  : "border-stone-300 dark:border-stone-600"
+                                  }`}
                               >
                                 {service.selectedEmployee?.id === employee.id && (
                                   <Check size={12} className="text-white" />
